@@ -10,9 +10,11 @@ venv/
 
 # Segmentos de vídeo gravados pelo DVR
 segments/
+test_segments/
 
 # Clipes temporários gerados pelo Worker
 clips/
+test_clips/
 
 # Python
 __pycache__/
