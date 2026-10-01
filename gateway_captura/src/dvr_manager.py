@@ -55,6 +55,8 @@ class DVRManager:
             "-c:v", "libx264",
             "-preset", "ultrafast",   # Mínimo uso de CPU
             "-tune", "zerolatency",   # Sem buffer de latência
+            "-g", "30",               # Força um keyframe a cada 30 frames (garante corte)
+            "-sc_threshold", "0",     # Desabilita detecção de cena que atrapalha o -g
             # Segmentação
             "-f", "segment",
             "-segment_time", str(self.segment_duration),
@@ -69,19 +71,17 @@ class DVRManager:
         try:
             self._ffmpeg_process = subprocess.Popen(
                 command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
             logger.info("DVR: FFmpeg iniciado com sucesso (PID %d)", self._ffmpeg_process.pid)
 
             # Fica bloqueado aqui enquanto o FFmpeg estiver rodando
-            _, stderr = self._ffmpeg_process.communicate()
+            self._ffmpeg_process.wait()
 
-            # Se o processo terminou sozinho (crash ou erro), loga o stderr
+            # Se o processo terminou sozinho (crash ou erro)
             if self._running.is_set():
                 logger.error("DVR: FFmpeg encerrou inesperadamente!")
-                if stderr:
-                    logger.error("DVR: FFmpeg stderr → %s", stderr.decode("utf-8", errors="replace")[-2000:])
 
         except FileNotFoundError:
             logger.error("DVR: FFmpeg não encontrado no PATH do sistema. Instale o FFmpeg.")

@@ -119,7 +119,7 @@ def test_dvr_recording():
     print(f"  Gravando {total_time}s de vídeo da câmera...")
     print(f"  ⏳ Aguarde ~{total_time} segundos...\n")
 
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     # Mostra progresso enquanto grava
     start = time.time()
@@ -243,7 +243,7 @@ def test_with_arduino():
         segment_pattern,
     ]
 
-    dvr_process = subprocess.Popen(dvr_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    dvr_process = subprocess.Popen(dvr_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     print(f"  📹 DVR iniciado (PID {dvr_process.pid}). Gravando segmentos de {TEST_SEGMENT_DURATION}s...")
     print(f"  ⏳ Aguarde pelo menos {TEST_SEGMENT_DURATION * 2}s antes de clicar o botão.\n")
 
