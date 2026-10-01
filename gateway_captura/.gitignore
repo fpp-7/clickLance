@@ -1,0 +1,26 @@
+# Ambiente virtual
+.venv/
+venv/
+
+# Variáveis de ambiente (contém credenciais)
+.env
+
+# Logs
+*.log
+
+# Segmentos de vídeo gravados pelo DVR
+segments/
+
+# Clipes temporários gerados pelo Worker
+clips/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# IDEs
+.vscode/
+.idea/
