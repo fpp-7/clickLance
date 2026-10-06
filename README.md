@@ -68,7 +68,12 @@ clickLance/
 - **Arquitetura Multi-Tenant:** Um banco de dados centralizado com segregação lógica por identificadores de empresa/quadra.
 - **Pagamentos:** Gateway externo (ex: Stripe, Mercado Pago ou Asaas) com tokenização de cartões sem armazenamento de dados sensíveis na aplicação (conformidade PCI).
 
-### 4. Plataforma Web do Usuário (Planejada)
+### 4. Plataforma Web do Usuário (`plataforma_web/`, em desenvolvimento)
+- **Tecnologia:** Next.js 16 + React 19 + TypeScript + Tailwind CSS 4, mobile-first e instalável como PWA.
+- **API mockada:** roda sem backend; a troca para a API real é feita por variável de ambiente. Detalhes em [`plataforma_web/README.md`](plataforma_web/README.md).
+- **Como rodar:** `cd plataforma_web`, `npm install`, `cp .env.example .env` e `npm run dev`.
+
+Escopo original planejado:
 - Consulta de partidas por data e faixa de horário (ex: 20h–21h, 21h–22h).
 - Pré-visualização de lances e compra individual ou por pacotes.
 - Área do cliente com reprodução e download dos vídeos adquiridos.
