@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+/*
+ * Tema escuro padrão do Click Lance. As cores vivem aqui como tokens do
+ * Tailwind (bg-surface, text-muted, bg-primary...). A personalização por
+ * arena (fase 2) vai sobrescrever --color-primary em tempo de execução.
+ */
+@theme {
+  --color-background: #0b0f14;
+  --color-surface: #121821;
+  --color-surface-2: #1a222d;
+  --color-border: #263241;
+  --color-foreground: #f1f5f9;
+  --color-muted: #94a3b8;
+
+  --color-primary: #a3e635;
+  --color-primary-hover: #bef264;
+  --color-on-primary: #0b0f14;
+
+  --color-live: #ef4444;
+  --color-danger: #f87171;
+  --color-warning: #fbbf24;
+  --color-success: #4ade80;
+
+  --radius-card: 1rem;
+}
+
+@theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-barlow), var(--font-inter), ui-sans-serif, sans-serif;
+}
+
+/* Respeita a barra inferior de iPhones com gesto de navegação */
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+  text-rendering: optimizeLegibility;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
