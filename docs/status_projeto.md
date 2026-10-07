@@ -31,9 +31,14 @@ Este documento registra o que já foi implementado no módulo local (Edge) do Cl
 - [ ] Gerar as chaves de acesso (IAM `AWS_ACCESS_KEY_ID` e `AWS_SECRET_ACCESS_KEY`) e configurar no `.env` do PC local.
 
 ### 2. Backend Cloud (Java / Spring Boot)
-- [ ] Desenvolver a API (`/api/replays`) no Spring Boot para receber o POST com o JSON do gateway.
-- [ ] Criar a modelagem do banco de dados (Tabelas: Quadra, Lance, Usuário).
-- [ ] Criar o endpoint de listagem de lances para alimentar o aplicativo ou site dos clientes.
+- [x] Especificação formal de Requisitos Funcionais (RF), Regras de Negócio (RN) e Requisitos Não-Funcionais (RNF) em [`docs/requisitos_e_regras_mvp.md`](requisitos_e_regras_mvp.md).
+- [x] Modelagem do banco de dados relacional (PostgreSQL) e script DDL completo com índices de performance.
+- [ ] Inicializar o projeto Spring Boot (Maven, dependências, Flyway migrations e Docker Compose).
+- [ ] Desenvolver a API de ingestão (`POST /api/v1/replays`) com autenticação via `X-Device-Token` e idempotência de 5s.
+- [ ] Desenvolver endpoint de sincronização de configurações para o Edge (`GET /api/v1/dispositivos/{id}/config`).
+- [ ] Desenvolver endpoint de consulta pública de lances por quadra, data e faixa horária.
+- [ ] Desenvolver cadastro/autenticação de usuários (JWT) e biblioteca "Meus Lances".
+- [ ] Desenvolver rotina agendada (Cron) para expiração pública e deleção física de vídeos órfãos no AWS S3.
 
 ### 3. Melhorias no Gateway Edge (Avançado)
 - [ ] **Fila de Retentativas Remota**: Se a internet da quadra cair no momento do upload, o Python precisa guardar esse lance numa pasta/tabela local e tentar fazer o upload novamente (Retry) quando a internet voltar.

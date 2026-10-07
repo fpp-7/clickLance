@@ -111,6 +111,8 @@
 
 ## 🗄️ 5. Modelo de Dados Relacional (PostgreSQL / Spring Data JPA)
 
+> 📄 **Documento Técnico Dedicado:** Para o diagrama ER detalhado, dicionário de dados exaustivo, máquina de estados do storage e script DDL oficial do Flyway, consulte [`docs/modelagem_banco_de_dados.md`](modelagem_banco_de_dados.md).
+
 ```
 [Empresa]
  ├── id: UUID (PK)
