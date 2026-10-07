@@ -174,5 +174,6 @@ Consulte o documento detalhado em [`docs/status_projeto.md`](docs/status_projeto
 ## 📚 Documentação Adicional
 
 - 📄 [`docs/documento_visao_produto_replay_quadras_v0_1.pdf`](docs/documento_visao_produto_replay_quadras_v0_1.pdf): Documento formal de levantamento inicial e visão de produto.
+- 📐 [`docs/requisitos_e_regras_mvp.md`](docs/requisitos_e_regras_mvp.md): Especificação completa de Requisitos Funcionais (RF) e Regras de Negócio (RN) do Backend MVP.
 - 📋 [`docs/status_projeto.md`](docs/status_projeto.md): Relatório de progresso técnico e backlog do módulo Edge e Cloud.
 - 💻 [`gateway_captura/README.md`](gateway_captura/README.md): Guia técnico detalhado do Gateway de Captura.
