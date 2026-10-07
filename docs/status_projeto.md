@@ -32,7 +32,8 @@ Este documento registra o que já foi implementado no módulo local (Edge) do Cl
 
 ### 2. Backend Cloud (Java / Spring Boot)
 - [x] Especificação formal de Requisitos Funcionais (RF), Regras de Negócio (RN) e Requisitos Não-Funcionais (RNF) em [`docs/requisitos_e_regras_mvp.md`](requisitos_e_regras_mvp.md).
-- [x] Modelagem do banco de dados relacional (PostgreSQL) e script DDL completo com índices de performance.
+- [x] Modelagem do banco de dados relacional (PostgreSQL) e script DDL completo em [`docs/modelagem_banco_de_dados.md`](modelagem_banco_de_dados.md).
+- [x] Planejamento de Sprints (US-01 a US-12) e especificação completa de contratos de API REST para Frontend e Edge em [`docs/historias_de_usuario_e_endpoints.md`](historias_de_usuario_e_endpoints.md).
 - [ ] Inicializar o projeto Spring Boot (Maven, dependências, Flyway migrations e Docker Compose).
 - [ ] Desenvolver a API de ingestão (`POST /api/v1/replays`) com autenticação via `X-Device-Token` e idempotência de 5s.
 - [ ] Desenvolver endpoint de sincronização de configurações para o Edge (`GET /api/v1/dispositivos/{id}/config`).

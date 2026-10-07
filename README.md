@@ -176,5 +176,6 @@ Consulte o documento detalhado em [`docs/status_projeto.md`](docs/status_projeto
 - 📄 [`docs/documento_visao_produto_replay_quadras_v0_1.pdf`](docs/documento_visao_produto_replay_quadras_v0_1.pdf): Documento formal de levantamento inicial e visão de produto.
 - 📐 [`docs/requisitos_e_regras_mvp.md`](docs/requisitos_e_regras_mvp.md): Especificação completa de Requisitos Funcionais (RF) e Regras de Negócio (RN) do Backend MVP.
 - 🗄️ [`docs/modelagem_banco_de_dados.md`](docs/modelagem_banco_de_dados.md): Modelagem de Banco de Dados relacional (PostgreSQL), diagrama ER, dicionário de dados e script DDL (Flyway).
-- 📋 [`docs/status_projeto.md`](docs/status_projeto.md): Relatório de progresso técnico e backlog do módulo Edge e Cloud.
+- 📋 [`docs/historias_de_usuario_e_endpoints.md`](docs/historias_de_usuario_e_endpoints.md): Planejamento ágil por Sprints (US-01 a US-12) e especificação completa de contratos de API REST (Frontend e Edge).
+- 📊 [`docs/status_projeto.md`](docs/status_projeto.md): Relatório de progresso técnico e backlog do módulo Edge e Cloud.
 - 💻 [`gateway_captura/README.md`](gateway_captura/README.md): Guia técnico detalhado do Gateway de Captura.
