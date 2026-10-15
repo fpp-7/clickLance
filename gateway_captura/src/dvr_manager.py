@@ -28,7 +28,7 @@ class DVRManager:
         self.camera_name: str = Config.CAMERA_DEVICE_NAME
         self.retention_hours: float = Config.RETENTION_HOURS
 
-        self._ffmpeg_process: subprocess.Popen | None = None
+        self._ffmpeg_process: subprocess.Popen[bytes] | None = None
         self._running = threading.Event()
 
         # Garante que a pasta de segmentos existe
@@ -41,7 +41,7 @@ class DVRManager:
         self._last_progress_mono = 0.0
         self.stderr_tail: list[str] = []
         self.capacity_paused = False
-        self.last_start_error = None
+        self.last_start_error: str | None = None
 
     # ------------------------------------------------------------------
     # GRAVAÇÃO
@@ -97,8 +97,11 @@ class DVRManager:
                 self.catalog.reconcile(self.session_id, finished=True)
             self._running.clear()
 
-    def _read_progress(self):
-        with self._ffmpeg_process.stdout as progress:
+    def _read_progress(self) -> None:
+        process = self._ffmpeg_process
+        if process is None or process.stdout is None:
+            return
+        with process.stdout as progress:
             for line in progress:
                 if line.startswith(b'out_time_us='):
                     try:
@@ -107,9 +110,12 @@ class DVRManager:
                         continue
                     self.observe_content(pts, time.monotonic())
 
-    def _read_stderr(self):
+    def _read_stderr(self) -> None:
         from .logger import redact
-        with self._ffmpeg_process.stderr as stream:
+        process = self._ffmpeg_process
+        if process is None or process.stderr is None:
+            return
+        with process.stderr as stream:
             for raw in stream:
                 text = redact(raw.decode('utf-8', errors='replace').strip())
                 if text:
@@ -224,18 +230,24 @@ class DVRManager:
     def stop_recording(self) -> None:
         """Encerra graciosamente o FFmpeg."""
         self._running.clear()
-        if self._ffmpeg_process and self._ffmpeg_process.poll() is None:
-            logger.info("DVR: Encerrando FFmpeg (PID %d)...", self._ffmpeg_process.pid)
+        process = self._ffmpeg_process
+        if process is None:
+            return
+        if process.poll() is None:
+            logger.info("DVR: Encerrando FFmpeg (PID %d)...", process.pid)
             try:
-                self._ffmpeg_process.stdin.write(b'q\n')
-                self._ffmpeg_process.stdin.flush()
-                self._ffmpeg_process.wait(timeout=10)
+                if process.stdin is not None and not process.stdin.closed:
+                    process.stdin.write(b'q\n')
+                    process.stdin.flush()
+                else:
+                    process.terminate()
+                process.wait(timeout=10)
             except (OSError, ValueError, subprocess.TimeoutExpired):
-                self._ffmpeg_process.kill()
-                self._ffmpeg_process.wait(timeout=5)
+                process.kill()
+                process.wait(timeout=5)
             logger.info("DVR: FFmpeg encerrado.")
-        if self._ffmpeg_process and self._ffmpeg_process.stdin:
-            self._ffmpeg_process.stdin.close()
+        if process.stdin is not None and not process.stdin.closed:
+            process.stdin.close()
 
     # ------------------------------------------------------------------
     # LIMPEZA DE DISCO

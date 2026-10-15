@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from src.config import Config
 from src.dvr_manager import DVRManager
@@ -124,6 +124,33 @@ class CameraInputTests(unittest.TestCase):
         self.addCleanup(config.stop)
         self.dvr = DVRManager()
         self.addCleanup(self.dvr.catalog.close)
+
+    def test_readers_and_stop_before_process_exists(self):
+        self.dvr._read_progress()
+        self.dvr._read_stderr()
+        self.dvr.stop_recording()
+        self.assertFalse(self.dvr._running.is_set())
+
+    def test_process_without_pipes_is_terminated(self):
+        process = Mock(pid=123, stdin=None, stdout=None, stderr=None)
+        process.poll.return_value = None
+        self.dvr._ffmpeg_process = process
+        self.dvr._read_progress()
+        self.dvr._read_stderr()
+        self.dvr.stop_recording()
+        process.terminate.assert_called_once_with()
+        process.wait.assert_called_once_with(timeout=10)
+
+    def test_stop_kills_process_when_graceful_shutdown_times_out(self):
+        process = Mock(pid=123)
+        process.poll.return_value = None
+        process.stdin.closed = False
+        process.wait.side_effect = [subprocess.TimeoutExpired('ffmpeg', 10), 0]
+        self.dvr._ffmpeg_process = process
+        self.dvr.stop_recording()
+        process.stdin.write.assert_called_once_with(b'q\n')
+        process.kill.assert_called_once_with()
+        process.stdin.close.assert_called_once_with()
 
     def test_rtsp_transport_and_timeout_before_input(self):
         with patch.multiple(Config, CAMERA_SOURCE='rtsp',
