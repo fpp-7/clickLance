@@ -16,6 +16,7 @@ class SegmentCatalog:
         self.lock = threading.RLock()
         self.db = sqlite3.connect(self.root / 'catalog.sqlite3', check_same_thread=False)
         self.db.row_factory = sqlite3.Row
+        self.db.execute('PRAGMA synchronous=FULL')
         with self.db:
             self.db.executescript('''
                 CREATE TABLE IF NOT EXISTS sessions (
@@ -142,7 +143,7 @@ class SegmentCatalog:
         for session in sessions:
             self.reconcile(session, finished=True)
 
-    def reserve(self, session_id: str, click: float, before: float, after: float) -> dict:
+    def reserve(self, session_id: str, click: float, before: float, after: float, *, commit=True) -> dict:
         """Congela a janela original e protege também segmentos ainda em escrita.
 
         Margem de 100 ms permite incluir o frame do clique no MP4 recodificado.
@@ -155,11 +156,13 @@ class SegmentCatalog:
         start = max(0, click - before - 0.1)
         end = click + after + 0.1
         request = dict(id=uuid4().hex, session_id=session_id, start=start, end=end, click=click)
-        with self.lock, self.db:
+        with self.lock:
             if not self.db.execute('SELECT 1 FROM sessions WHERE id=?', (session_id,)).fetchone():
                 raise ValueError('UNKNOWN_SESSION')
             self.db.execute('INSERT INTO replay_reservations VALUES (?, ?, ?, ?, ?)',
                             (request['id'], session_id, start, end, click))
+            if commit:
+                self.db.commit()
         return request
 
     def reservation(self, request_id: str) -> dict:

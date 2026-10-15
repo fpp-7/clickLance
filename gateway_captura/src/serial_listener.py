@@ -15,6 +15,7 @@ import serial
 
 from .config import Config
 from .logger import logger
+from .serial_protocol import LineFramer, SerialProtocol
 
 # Mensagem esperada do Arduino
 TRIGGER_MESSAGE = "Botao foi Pressionado!"
@@ -27,9 +28,10 @@ DEBOUNCE_SECONDS = 5
 class SerialListener:
     """Produtor: escuta a serial e enfileira eventos de clique."""
 
-    def __init__(self, event_queue: Queue, dvr=None) -> None:
+    def __init__(self, event_queue: Queue, dvr=None, store=None) -> None:
         self.queue = event_queue
         self.dvr = dvr
+        self.protocol = SerialProtocol(store) if store is not None else None
         self.port: str = Config.SERIAL_PORT
         self.baud_rate: int = Config.BAUD_RATE
         self._running = True
@@ -40,6 +42,9 @@ class SerialListener:
         Loop bloqueante que lê a porta serial.
         Deve rodar na Thread Principal ou em uma Thread dedicada.
         """
+        if self.protocol is not None:
+            self._listen_protocol()
+            return
         self._running = True
         connection: serial.Serial | None = None
 
@@ -112,4 +117,30 @@ class SerialListener:
     def stop(self) -> None:
         """Sinaliza para o loop de escuta encerrar."""
         self._running = False
+
+    def _listen_protocol(self):
+        self._running = True
+        while self._running:
+            try:
+                with serial.Serial(self.port, self.baud_rate, timeout=0.1, write_timeout=1) as connection:
+                    self.protocol.reset_connection()
+                    framer = LineFramer()
+                    last_state = 0
+                    while self._running:
+                        data = connection.read(min(192, max(1, connection.in_waiting)))
+                        for line in framer.feed(data):
+                            reply = self.protocol.handle(line)
+                            if reply:
+                                connection.write((reply + '\n').encode('ascii'))
+                        if time.monotonic() - last_state >= 1:
+                            state = self.protocol.state_line()
+                            if state:
+                                connection.write((state + '\n').encode('ascii'))
+                            last_state = time.monotonic()
+            except (serial.SerialException, OSError) as exc:
+                logger.warning('Serial: conexão indisponível (%s).', type(exc).__name__)
+                for _ in range(50):
+                    if not self._running:
+                        break
+                    time.sleep(0.1)
 

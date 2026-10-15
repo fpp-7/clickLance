@@ -68,7 +68,7 @@ class ReplayClockTests(GatewayFixture, unittest.TestCase):
     def test_encoder_timeout_cleans_exclusive_concat_file(self):
         request = self.request()
         _, records = self.dvr.catalog.select_reserved(request['id'])
-        with patch('src.video_processor.subprocess.run', side_effect=subprocess.TimeoutExpired('ffmpeg', 1)):
+        with patch.object(self.worker, '_execute', side_effect=subprocess.TimeoutExpired('ffmpeg', 1)):
             with self.assertRaises(subprocess.TimeoutExpired):
                 self.worker._render_replay(request, records, str(self.root / 'timeout.mp4'))
         self.assertEqual(list(Path(self.worker.output_dir).glob('*.ffconcat')), [])

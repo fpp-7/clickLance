@@ -34,13 +34,25 @@ class Config:
     REPLAY_WAIT_SECONDS: float = float(os.getenv("REPLAY_WAIT_SECONDS", "65"))
     REPLAY_FFMPEG_TIMEOUT_SECONDS: float = float(os.getenv("REPLAY_FFMPEG_TIMEOUT_SECONDS", "180"))
     OUTPUT_DIR: str = os.getenv("OUTPUT_DIR", "clips")
+    DEVICE_ID: str = os.getenv('DEVICE_ID', 'mega01')
+    DEVICE_TOKEN: str = os.getenv('DEVICE_TOKEN', '')
+    MAX_PENDING_EVENTS: int = int(os.getenv('MAX_PENDING_EVENTS', '100'))
+    MIN_FREE_BYTES: int = int(os.getenv('MIN_FREE_BYTES', str(2 * 1024**3)))
+    BUFFER_QUOTA_BYTES: int = int(os.getenv('BUFFER_QUOTA_BYTES', str(24 * 1024**3)))
+    CLIPS_QUOTA_BYTES: int = int(os.getenv('CLIPS_QUOTA_BYTES', str(20 * 1024**3)))
+    CAPACITY_BITRATE: int = int(os.getenv('CAPACITY_BITRATE', '8000000'))
+    MAX_RETRIES: int = int(os.getenv('MAX_RETRIES', '10'))
+    CONFIG_URL: str = os.getenv('CONFIG_URL', '')
+    CONFIG_REFRESH_SECONDS: int = int(os.getenv('CONFIG_REFRESH_SECONDS', '300'))
+    CONFIG_VERSION: str = 'local'
 
     # --- AWS S3 ---
     AWS_ACCESS_KEY_ID: str | None = os.getenv("AWS_ACCESS_KEY_ID")
     AWS_SECRET_ACCESS_KEY: str | None = os.getenv("AWS_SECRET_ACCESS_KEY")
+    AWS_SESSION_TOKEN: str | None = os.getenv('AWS_SESSION_TOKEN')
     AWS_REGION: str = os.getenv("AWS_REGION", "us-east-1")
     S3_BUCKET_NAME: str | None = os.getenv("S3_BUCKET_NAME")
 
     # --- API Backend ---
-    API_URL: str = os.getenv("API_URL", "http://localhost:8080/api/replays")
+    API_URL: str = os.getenv("API_URL", "http://localhost:8080/api/v1/replays")
     QUADRA_ID: str = os.getenv("QUADRA_ID", "quadra_001")

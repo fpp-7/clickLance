@@ -34,6 +34,7 @@ class VideoProcessor(threading.Thread):
         super().__init__(name="WorkerThread", daemon=True)
         self.queue = event_queue
         self.dvr = dvr
+        self._active_ffmpeg = None
 
         self.output_dir: str = Config.OUTPUT_DIR
         self.quadra_id: str = Config.QUADRA_ID
@@ -143,8 +144,7 @@ class VideoProcessor(threading.Thread):
         logger.debug("Worker: Comando → %s", " ".join(command))
 
         try:
-            result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                    text=True, timeout=Config.REPLAY_FFMPEG_TIMEOUT_SECONDS)
+            result = self._execute(command)
         finally:
             os.remove(concat_list_path)
 
@@ -154,6 +154,25 @@ class VideoProcessor(threading.Thread):
 
         file_size_mb = os.path.getsize(output_path) / (1024 * 1024)
         logger.info("Worker: Clipe gerado (%.1f MB): %s", file_size_mb, output_path)
+
+    def _execute(self, command):
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        self._active_ffmpeg = process
+        try:
+            try:
+                stdout, stderr = process.communicate(timeout=Config.REPLAY_FFMPEG_TIMEOUT_SECONDS)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.communicate()
+                raise
+            return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+        finally:
+            self._active_ffmpeg = None
+
+    def cancel(self):
+        process = self._active_ffmpeg
+        if process is not None and process.poll() is None:
+            process.kill()
 
     # ------------------------------------------------------------------
     # ETAPA 2: UPLOAD S3

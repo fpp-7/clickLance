@@ -39,6 +39,7 @@ class DVRManager:
         self._content_anchor: float | None = None
         self._last_content_pts = -1.0
         self._last_progress_mono = 0.0
+        self.stderr_tail: list[str] = []
 
     # ------------------------------------------------------------------
     # GRAVAÇÃO
@@ -66,16 +67,19 @@ class DVRManager:
             command[1:1] = ['-nostats', '-stats_period', '0.1', '-progress', 'pipe:1']
             logger.info('DVR: Iniciando sessão %s, entrada %s', self.session_id, Config.CAMERA_SOURCE)
             self._ffmpeg_process = subprocess.Popen(
-                command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             )
             progress_reader = threading.Thread(target=self._read_progress, daemon=True)
             progress_reader.start()
+            error_reader = threading.Thread(target=self._read_stderr, daemon=True)
+            error_reader.start()
             logger.info("DVR: FFmpeg iniciado (PID %d)", self._ffmpeg_process.pid)
             while self._ffmpeg_process.poll() is None:
                 self.catalog.reconcile(self.session_id)
                 time.sleep(0.5)
             self.catalog.reconcile(self.session_id, finished=True)
             progress_reader.join(timeout=2)
+            error_reader.join(timeout=2)
             if self._running.is_set():
                 logger.error("DVR: FFmpeg encerrou inesperadamente!")
         except FileNotFoundError:
@@ -98,6 +102,15 @@ class DVRManager:
                         continue
                     self.observe_content(pts, time.monotonic())
 
+    def _read_stderr(self):
+        from .logger import redact
+        with self._ffmpeg_process.stderr as stream:
+            for raw in stream:
+                text = redact(raw.decode('utf-8', errors='replace').strip())
+                if text:
+                    self.stderr_tail.append(text[-500:])
+                    del self.stderr_tail[:-10]
+
     def observe_content(self, pts: float, observed_mono: float):
         """Âncora de recepção; não substitui medição da latência da câmera IP."""
         with self._clock_lock:
@@ -108,7 +121,7 @@ class DVRManager:
             self._last_content_pts = pts
             self._last_progress_mono = observed_mono
 
-    def snapshot_replay(self, click_mono: float) -> dict:
+    def snapshot_replay(self, click_mono: float, *, commit=True, reserve=True) -> dict:
         latency = Config.CAMERA_LATENCY_SECONDS
         if latency is None:
             if Config.CAMERA_SOURCE == 'rtsp':
@@ -125,6 +138,8 @@ class DVRManager:
         if not session_id:
             raise ValueError('UNKNOWN_SESSION')
         with self.catalog.lock:
+            if reserve and (session_id != self.session_id or not self._running.is_set()):
+                raise ValueError('CAMERA_UNAVAILABLE')
             before = Config.REPLAY_BEFORE_SECONDS
             start = max(0, click_pts - before - 0.1)
             records = [r for r in self.catalog.records(session_id) if r['status'] == 'CLOSED']
@@ -133,7 +148,9 @@ class DVRManager:
             covered_end = min(click_pts, records[-1]['end'])
             if covered_end <= start or self.catalog.coverage_gaps(session_id, start, covered_end):
                 raise ValueError('VIDEO_GAP')
-            return self.catalog.reserve(session_id, click_pts, before, Config.REPLAY_AFTER_SECONDS)
+            if not reserve:
+                return {}
+            return self.catalog.reserve(session_id, click_pts, before, Config.REPLAY_AFTER_SECONDS, commit=commit)
 
     def wait_replay(self, request_id: str) -> tuple[dict, list[dict]]:
         deadline = time.monotonic() + Config.REPLAY_WAIT_SECONDS
