@@ -1,27 +1,10 @@
 """Diagnóstico com comandos de captura e concatenação de produção."""
-import json
 import subprocess
 from pathlib import Path
 from urllib.parse import urlsplit
 from .config import Config
 from .dvr_manager import DVRManager
-
-
-def validate_video(path: Path) -> float:
-    """Exige vídeo com duração positiva e decodificação integral."""
-    result = subprocess.run(
-        ['ffprobe', '-v', 'error', '-show_streams', '-show_format', '-of', 'json', str(path)],
-        capture_output=True, text=True, timeout=20, check=True,
-    )
-    data = json.loads(result.stdout)
-    duration = float(data['format']['duration'])
-    if duration <= 0 or not any(s['codec_type'] == 'video' for s in data['streams']):
-        raise ValueError(f'Vídeo sem conteúdo: {path}')
-    subprocess.run(
-        ['ffmpeg', '-v', 'error', '-xerror', '-i', str(path), '-f', 'null', '-'],
-        capture_output=True, timeout=30, check=True,
-    )
-    return duration
+from .media import validate_video
 
 
 def capture_sample(dvr: DVRManager, directory: Path, *, synthetic: bool) -> list[Path]:
@@ -37,6 +20,7 @@ def capture_sample(dvr: DVRManager, directory: Path, *, synthetic: bool) -> list
         input_args = ['-f', 'lavfi', '-i', source]
     command = dvr.build_recording_command(
         str(directory / 'seg_%04d.mp4'), input_args=input_args, duration=6,
+        manifest_path=str(directory / 'segments.csv'),
     )
     try:
         result = subprocess.run(command, capture_output=True, text=True, timeout=30)

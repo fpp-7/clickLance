@@ -17,6 +17,11 @@ class Config:
     CAMERA_RTSP_TRANSPORT: str = os.getenv("CAMERA_RTSP_TRANSPORT", "tcp")
     CAMERA_TIMEOUT_SECONDS: float = float(os.getenv("CAMERA_TIMEOUT_SECONDS", "10"))
     KEYFRAME_INTERVAL: int = int(os.getenv("KEYFRAME_INTERVAL", "30"))
+    # RTSP exige compensação medida antes de enfileirar cliques reais.
+    CAMERA_LATENCY_SECONDS: float | None = (
+        float(os.environ["CAMERA_LATENCY_SECONDS"])
+        if os.getenv("CAMERA_LATENCY_SECONDS", "").strip() else None
+    )
     CAMERA_DEVICE_NAME: str = os.getenv("CAMERA_DEVICE_NAME", "USB Video Device")
     SEGMENT_DURATION_SECONDS: int = int(os.getenv("SEGMENT_DURATION_SECONDS", "60"))
     SEGMENTS_DIR: str = os.getenv("SEGMENTS_DIR", "segments")
@@ -24,6 +29,10 @@ class Config:
 
     # --- Processamento de Vídeo ---
     SEGMENTS_TO_CONCAT: int = int(os.getenv("SEGMENTS_TO_CONCAT", "2"))
+    REPLAY_BEFORE_SECONDS: float = float(os.getenv("REPLAY_BEFORE_SECONDS", "120"))
+    REPLAY_AFTER_SECONDS: float = float(os.getenv("REPLAY_AFTER_SECONDS", "0"))
+    REPLAY_WAIT_SECONDS: float = float(os.getenv("REPLAY_WAIT_SECONDS", "65"))
+    REPLAY_FFMPEG_TIMEOUT_SECONDS: float = float(os.getenv("REPLAY_FFMPEG_TIMEOUT_SECONDS", "180"))
     OUTPUT_DIR: str = os.getenv("OUTPUT_DIR", "clips")
 
     # --- AWS S3 ---

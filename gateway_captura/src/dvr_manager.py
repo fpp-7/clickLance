@@ -35,6 +35,10 @@ class DVRManager:
         os.makedirs(self.segments_dir, exist_ok=True)
         self.catalog = SegmentCatalog(self.segments_dir)
         self.session_id: str | None = None
+        self._clock_lock = threading.Lock()
+        self._content_anchor: float | None = None
+        self._last_content_pts = -1.0
+        self._last_progress_mono = 0.0
 
     # ------------------------------------------------------------------
     # GRAVAÇÃO
@@ -44,6 +48,10 @@ class DVRManager:
         Inicia o FFmpeg em modo segmentado (roda indefinidamente).
         Deve ser chamado dentro de uma Thread dedicada.
         """
+        with self._clock_lock:
+            self._content_anchor = None
+            self._last_content_pts = -1.0
+            self.session_id = None
         self._running.set()
 
         try:
@@ -55,15 +63,19 @@ class DVRManager:
             command = self.build_recording_command(
                 str(directory / 'seg_%04d.mp4'), manifest_path=str(directory / 'segments.csv'),
             )
+            command[1:1] = ['-nostats', '-stats_period', '0.1', '-progress', 'pipe:1']
             logger.info('DVR: Iniciando sessão %s, entrada %s', self.session_id, Config.CAMERA_SOURCE)
             self._ffmpeg_process = subprocess.Popen(
-                command, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             )
+            progress_reader = threading.Thread(target=self._read_progress, daemon=True)
+            progress_reader.start()
             logger.info("DVR: FFmpeg iniciado (PID %d)", self._ffmpeg_process.pid)
             while self._ffmpeg_process.poll() is None:
                 self.catalog.reconcile(self.session_id)
                 time.sleep(0.5)
             self.catalog.reconcile(self.session_id, finished=True)
+            progress_reader.join(timeout=2)
             if self._running.is_set():
                 logger.error("DVR: FFmpeg encerrou inesperadamente!")
         except FileNotFoundError:
@@ -75,6 +87,67 @@ class DVRManager:
             if self.session_id:
                 self.catalog.reconcile(self.session_id, finished=True)
             self._running.clear()
+
+    def _read_progress(self):
+        with self._ffmpeg_process.stdout as progress:
+            for line in progress:
+                if line.startswith(b'out_time_us='):
+                    try:
+                        pts = int(line.split(b'=', 1)[1]) / 1_000_000
+                    except ValueError:
+                        continue
+                    self.observe_content(pts, time.monotonic())
+
+    def observe_content(self, pts: float, observed_mono: float):
+        """Âncora de recepção; não substitui medição da latência da câmera IP."""
+        with self._clock_lock:
+            if pts <= self._last_content_pts or pts < 0:
+                return
+            if self._content_anchor is None:
+                self._content_anchor = observed_mono - pts
+            self._last_content_pts = pts
+            self._last_progress_mono = observed_mono
+
+    def snapshot_replay(self, click_mono: float) -> dict:
+        latency = Config.CAMERA_LATENCY_SECONDS
+        if latency is None:
+            if Config.CAMERA_SOURCE == 'rtsp':
+                raise ValueError('CAMERA_TIME_NOT_CALIBRATED')
+            latency = 0.0
+        if not 0 <= latency <= 60:
+            raise ValueError('INVALID_CAMERA_LATENCY')
+        with self._clock_lock:
+            if (self._content_anchor is None or not self._running.is_set()
+                    or click_mono - self._last_progress_mono > 5):
+                raise ValueError('CAMERA_UNAVAILABLE')
+            click_pts = click_mono - self._content_anchor + latency
+            session_id = self.session_id
+        if not session_id:
+            raise ValueError('UNKNOWN_SESSION')
+        with self.catalog.lock:
+            before = Config.REPLAY_BEFORE_SECONDS
+            start = max(0, click_pts - before - 0.1)
+            records = [r for r in self.catalog.records(session_id) if r['status'] == 'CLOSED']
+            if not records or click_pts < before:
+                raise ValueError('WARMING_UP')
+            covered_end = min(click_pts, records[-1]['end'])
+            if covered_end <= start or self.catalog.coverage_gaps(session_id, start, covered_end):
+                raise ValueError('VIDEO_GAP')
+            return self.catalog.reserve(session_id, click_pts, before, Config.REPLAY_AFTER_SECONDS)
+
+    def wait_replay(self, request_id: str) -> tuple[dict, list[dict]]:
+        deadline = time.monotonic() + Config.REPLAY_WAIT_SECONDS
+        request = self.catalog.reservation(request_id)
+        while True:
+            self.catalog.reconcile(request['session_id'])
+            try:
+                return self.catalog.select_reserved(request_id)
+            except ValueError as exc:
+                if str(exc) not in ('VIDEO_GAP', 'VIDEO_MISSING'):
+                    raise
+                if time.monotonic() >= deadline:
+                    raise ValueError('VIDEO_COVERAGE_TIMEOUT') from None
+                time.sleep(0.1)
 
     def build_input_args(self) -> list[str]:
         if Config.CAMERA_SOURCE == 'dshow':

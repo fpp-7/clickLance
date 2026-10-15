@@ -3,6 +3,45 @@
 15/10/2026. Windows, Python 3.13, FFmpeg/ffprobe Essentials 9.0.1.
 Câmera de produção informada: Intelbras VIP; modelo exato não identificado.
 
+## Atualização GW-05 — seleção temporal
+
+Resultado atual: **35 testes aprovados, sem falhas esperadas ou testes ignorados**.
+As contagens e limitações da entrega inicial abaixo são históricas.
+
+O worker exige uma reserva gerada no clique, seleciona por sessão/intervalo e
+não consulta segmentos recentes. A reserva SQLite protege segmentos fechados
+e o segmento que ainda fechará, durante fila atrasada e espera por cobertura.
+Sobrevive à reabertura do catálogo. Lacuna ou ausência de arquivo impede upload
+após o prazo configurado; ausência de contexto nunca usa o vídeo mais recente.
+
+O receptor serial captura o contexto antes da fila e mede cooldown por
+monotônico. Progresso `out_time_us` do FFmpeg ancora o conteúdo à recepção;
+UTC é auditoria. RTSP exige `CAMERA_LATENCY_SECONDS` medido; sem configuração,
+o clique é recusado no log. Validar essa compensação e sua variação na rede real
+continua pendente. O protocolo serial ainda é o legado, sem ACK de aceitação.
+
+O corte recodifica H.264, sem áudio, com faststart e margem de 100 ms nas bordas
+disponíveis. Há lista temporária exclusiva, timeout e validação de decodificação
+integral e duração (tolerância de 50 ms). A margem inclui o frame do clique.
+Três posições do segmento são verificadas por pixels: marcadores vermelho,
+verde e azul conferem tanto o clique como as bordas do conteúdo resultante.
+
+Falha de geração conserva reserva e não faz upload; fontes são liberadas só
+depois do clipe validado. Falha de upload/API conserva o clipe local; a remoção
+ocorre somente após ambos confirmarem. Não há retentativa persistente ainda.
+
+O diagnóstico gera `replay_corrigido_clique_t5.mp4`: t=2,9–5,1, duração 2,2 s,
+usando a lista CSV real do FFmpeg. O clipe legado t=0–4 fica para comparação e
+já não representa o algoritmo do worker.
+
+**Limites atuais:** não houve conexão RTSP nem medição com câmera física.
+Custo/precisão da janela de 120 s e calibração na câmera real estão pendentes.
+As reservas são persistentes, mas a fila/eventos não têm recuperação automática;
+reservas com falha permanecem protegidas para reconciliação na Sprint 3.
+Não há promessa de aceitação durável nem confirmação nova no firmware.
+
+## Registro histórico da entrega inicial GW-04
+
 ## Implementado
 
 - Entrada RTSP configurável, transporte TCP/UDP e timeout de socket em microssegundos.

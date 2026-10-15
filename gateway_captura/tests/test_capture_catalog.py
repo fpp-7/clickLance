@@ -186,6 +186,7 @@ class CameraInputTests(unittest.TestCase):
         self.assertEqual(len(records), 3)
         self.assertTrue(all(r['status'] == 'CLOSED' for r in records))
         self.assertFalse(self.dvr._running.is_set())
+        self.assertGreaterEqual(self.dvr._last_content_pts, 5)
 
 
 if __name__ == '__main__':

@@ -6,8 +6,9 @@ Data: 15 de outubro de 2026. Status: Sprint 1 verificada automaticamente, com ba
 
 - Entrada RTSP configurável implementada (TCP/UDP e timeout), sem URL ou credenciais nos logs do gateway. Equipamento informado: Intelbras VIP, modelo exato ainda pendente.
 - GW-04 iniciado: diretórios únicos por sessão, catálogo SQLite, lista CSV de fechamento do FFmpeg, validação de stream/duração, identificação de lacunas e reconciliação na inicialização. Arquivos em escrita e órfãos ficam separados dos fechados.
-- Evidência: 23 testes executados, 19 aprovados e 4 falhas esperadas do fluxo legado. Inclui captura sintética real pelo ciclo do DVR, persistência/reinício, retenção e validação do catálogo. [Detalhes e limites](evidencias_sprint_2.md).
-- Pendentes: stream RTSP simulado/real, âncora do conteúdo ao instante do clique, migração do worker para seleção temporal, reservas contra limpeza e cortes/validação de GW-05. Sprint 2 não concluída.
+- GW-05 implementado com fonte temporal controlada: janela reservada antes da fila, seleção por sessão/intervalo, espera limitada, proteção contra limpeza, corte recodificado com temporários exclusivos e validação de duração/decodificação. Cooldown e âncora de recepção usam monotônico.
+- Evidência atual: 35 testes aprovados, sem falhas esperadas ou testes ignorados. Inclui conteúdo por pixels nas bordas e no clique, fila atrasada, reservas persistidas, timeout e falhas de geração/upload/API. [Detalhes e limites](evidencias_sprint_2.md).
+- Pendentes: stream RTSP simulado/real, medição da latência da câmera e validação da âncora contra a cena, custo da janela completa no equipamento alvo. Sprint 2 ainda não homologada. Recuperação de eventos e confirmação serial pertencem à Sprint 3.
 
 ### Andamento da Sprint 1
 

@@ -3,6 +3,7 @@ import argparse
 import json
 import subprocess
 import tempfile
+import shutil
 from pathlib import Path
 from queue import Queue
 
@@ -48,7 +49,25 @@ def main() -> int:
                 'clip': str(legacy_output),
             }
             print('Demonstração GW-05: clique t=5 está no terceiro segmento; '
-                  'a seleção atual usa somente os dois primeiros. Veja report.json.')
+                  'a seleção legada usa somente os dois primeiros. Veja report.json.')
+            session = dvr.catalog.create_session(0, 'synthetic')
+            session_dir = dvr.catalog.session_directory(session)
+            # Reutiliza a lista real de fechamento do FFmpeg, sem inventar intervalos.
+            for segment in segments:
+                shutil.copy2(segment, session_dir / segment.name)
+            shutil.copy2(root / 'segments' / 'segments.csv', session_dir / 'segments.csv')
+            dvr.catalog.reconcile(session, finished=True)
+            request = dvr.catalog.reserve(session, 5, 2, 0)
+            _, records = dvr.wait_replay(request['id'])
+            corrected_output = root / 'replay_corrigido_clique_t5.mp4'
+            worker._render_replay(request, records, str(corrected_output))
+            report['temporal_replay'] = {
+                'click_seconds': 5, 'start': request['start'], 'end': request['end'],
+                'selected_segments': [Path(r['path']).name for r in records],
+                'duration': validate_video(corrected_output), 'clip': str(corrected_output),
+            }
+            dvr.catalog.release(request['id'])
+            print(f'Replay temporal gerado: {corrected_output}')
         report['ok'] = True
         print('Serial, aceitação durável e integração cloud não foram validadas.')
         return 0

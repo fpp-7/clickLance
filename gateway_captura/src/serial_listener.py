@@ -27,12 +27,13 @@ DEBOUNCE_SECONDS = 5
 class SerialListener:
     """Produtor: escuta a serial e enfileira eventos de clique."""
 
-    def __init__(self, event_queue: Queue) -> None:
+    def __init__(self, event_queue: Queue, dvr=None) -> None:
         self.queue = event_queue
+        self.dvr = dvr
         self.port: str = Config.SERIAL_PORT
         self.baud_rate: int = Config.BAUD_RATE
         self._running = True
-        self._last_trigger_time: float = 0.0  # Controle de debounce
+        self._last_trigger_time: float | None = None
 
     def start_listening(self) -> None:
         """
@@ -63,7 +64,9 @@ class SerialListener:
 
                         if line == TRIGGER_MESSAGE:
                             now = time.time()
-                            elapsed = now - self._last_trigger_time
+                            click_mono = time.monotonic()
+                            elapsed = (click_mono - self._last_trigger_time
+                                       if self._last_trigger_time is not None else float('inf'))
 
                             # DEBOUNCE: ignora cliques dentro da janela de cooldown
                             if elapsed < DEBOUNCE_SECONDS:
@@ -75,8 +78,15 @@ class SerialListener:
                                 )
                                 continue
 
-                            self._last_trigger_time = now
-                            self.queue.put({"timestamp": now})
+                            event = {"timestamp": now}
+                            if self.dvr is not None:
+                                try:
+                                    event['replay'] = self.dvr.snapshot_replay(click_mono)
+                                except ValueError as exc:
+                                    logger.warning('Serial: Clique não enfileirado (%s).', exc)
+                                    continue
+                            self._last_trigger_time = click_mono
+                            self.queue.put(event)
                             logger.info(
                                 "Serial: ✅ BOTÃO PRESSIONADO! Evento enfileirado. "
                                 "Fila contém %d evento(s) pendente(s).",

@@ -28,6 +28,11 @@ class SegmentCatalog:
                     status TEXT NOT NULL,
                     FOREIGN KEY(session_id) REFERENCES sessions(id)
                 );
+                CREATE TABLE IF NOT EXISTS replay_reservations (
+                    id TEXT PRIMARY KEY, session_id TEXT NOT NULL,
+                    start REAL NOT NULL, end REAL NOT NULL, click REAL NOT NULL,
+                    FOREIGN KEY(session_id) REFERENCES sessions(id)
+                );
             ''')
 
     def close(self):
@@ -137,16 +142,66 @@ class SegmentCatalog:
         for session in sessions:
             self.reconcile(session, finished=True)
 
+    def reserve(self, session_id: str, click: float, before: float, after: float) -> dict:
+        """Congela a janela original e protege também segmentos ainda em escrita.
+
+        Margem de 100 ms permite incluir o frame do clique no MP4 recodificado.
+        Isto é reserva de fonte; ainda não é aceitação durável de evento (GW-06).
+        """
+        if not all(math.isfinite(n) for n in (click, before, after)):
+            raise ValueError('INVALID_WINDOW')
+        if before <= 0 or after < 0 or click - before < 0:
+            raise ValueError('WARMING_UP')
+        start = max(0, click - before - 0.1)
+        end = click + after + 0.1
+        request = dict(id=uuid4().hex, session_id=session_id, start=start, end=end, click=click)
+        with self.lock, self.db:
+            if not self.db.execute('SELECT 1 FROM sessions WHERE id=?', (session_id,)).fetchone():
+                raise ValueError('UNKNOWN_SESSION')
+            self.db.execute('INSERT INTO replay_reservations VALUES (?, ?, ?, ?, ?)',
+                            (request['id'], session_id, start, end, click))
+        return request
+
+    def reservation(self, request_id: str) -> dict:
+        with self.lock:
+            row = self.db.execute('SELECT * FROM replay_reservations WHERE id=?', (request_id,)).fetchone()
+            if row is None:
+                raise ValueError('UNKNOWN_RESERVATION')
+            return dict(row)
+
+    def release(self, request_id: str):
+        with self.lock, self.db:
+            self.db.execute('DELETE FROM replay_reservations WHERE id=?', (request_id,))
+
+    def select_reserved(self, request_id: str) -> tuple[dict, list[dict]]:
+        with self.lock:
+            request = self.reservation(request_id)
+            if self.coverage_gaps(request['session_id'], request['start'], request['end']):
+                raise ValueError('VIDEO_GAP')
+            records = [r for r in self.records(request['session_id'])
+                       if r['status'] == 'CLOSED' and r['end'] > request['start']
+                       and r['start'] < request['end']]
+            if not records or not all(Path(r['path']).is_file() for r in records):
+                raise ValueError('VIDEO_MISSING')
+            if any(abs(a['end'] - b['start']) > 0.001 for a, b in zip(records, records[1:])):
+                raise ValueError('VIDEO_GAP')
+            return request, records
+
     def prune(self, cutoff_utc: float):
         """Retenção de arquivos fechados; segmentos em escrita ficam preservados.
 
-        Reservas de eventos serão adicionadas em GW-05/GW-06 antes da aceitação durável.
+        Reservas protegem a janela inteira, incluindo arquivos fechados depois do clique.
         """
         with self.lock:
             candidates = self.db.execute('''
                 SELECT segments.path FROM segments JOIN sessions
                 ON sessions.id=segments.session_id
                 WHERE segments.status='CLOSED' AND sessions.started_utc + segments.end < ?
+                AND NOT EXISTS (
+                    SELECT 1 FROM replay_reservations r
+                    WHERE r.session_id=segments.session_id
+                    AND r.start < segments.end AND r.end > segments.start
+                )
             ''', (cutoff_utc,)).fetchall()
             for row in candidates:
                 path = Path(row['path'])

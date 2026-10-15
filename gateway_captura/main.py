@@ -32,7 +32,7 @@ def main() -> None:
     # ---- Instanciar componentes ----
     dvr = DVRManager()
     worker = VideoProcessor(event_queue, dvr)
-    serial_listener = SerialListener(event_queue)
+    serial_listener = SerialListener(event_queue, dvr)
 
     # ---- Thread 1: Gravação Contínua (DVR) ----
     dvr_thread = threading.Thread(

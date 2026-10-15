@@ -127,8 +127,21 @@ em frames. O modelo de câmera não é inferido para compor URLs automaticamente
 Cada captura cria `segments/<sessão>/seg_*.mp4`, com lista CSV de fechamento e
 catálogo `segments/catalog.sqlite3`. Só segmentos fechados com stream/duração
 verificados ficam disponíveis. Os arquivos planos antigos não são importados
-para a sessão nova. A seleção temporal e as reservas do replay ainda estão em
-desenvolvimento; consulte [evidências da Sprint 2](../docs/evidencias_sprint_2.md).
+para a sessão nova. A seleção temporal e as reservas estão verificadas com fonte
+controlada; consulte [evidências da Sprint 2](../docs/evidencias_sprint_2.md).
+
+O replay usa `REPLAY_BEFORE_SECONDS=120` e `REPLAY_AFTER_SECONDS=0`, com espera
+de até `REPLAY_WAIT_SECONDS=65` pelo fechamento. Cliques guardam sessão/janela
+antes de entrar na fila; limpeza respeita reservas persistentes. O corte é
+recodificado e validado antes do envio. `SEGMENTS_TO_CONCAT` ficou legado e não
+controla mais o worker. Falhas de upload/API preservam o clipe, sem retomada
+automática por enquanto.
+
+Para cliques reais RTSP, preencha `CAMERA_LATENCY_SECONDS` com valor medido;
+vazio bloqueia enfileiramento (`CAMERA_TIME_NOT_CALIBRATED`). A âncora usa
+progresso do FFmpeg e relógio monotônico de recepção; a calibração contra a cena
+real ainda precisa ser validada. Não preencher zero sem medir. O vídeo sintético
+não depende dessa configuração.
 
 ## 🧪 Diagnóstico e testes automáticos
 
@@ -139,8 +152,8 @@ Execute os testes sem câmera, Arduino ou serviços cloud:
 ```
 
 Os testes de vídeo precisam de `ffmpeg` e `ffprobe` no PATH; sem eles ficam
-explicitamente ignorados. Quatro regressões estão marcadas como falhas esperadas
-até as correções de GW-04/GW-05/GW-07.
+explicitamente ignorados. A execução atual tem 35 testes aprovados, sem falhas
+esperadas. Os defeitos de seleção e exclusão prematura foram corrigidos.
 
 Para gerar vídeo com relógio, frames e marcadores sem câmera:
 
@@ -160,8 +173,8 @@ incluindo `report.json` e stderr do FFmpeg. O script exige captura bem-sucedida,
 duração coerente e decodificação integral. A concatenação usa VideoProcessor;
 nenhum vídeo é enviado à nuvem.
 
-O modo sintético também gera um replay pelo seletor atual para demonstrar a
-exclusão do segmento do clique. Captura válida não significa replay correto.
+O modo sintético gera clipes pelo seletor legado e pelo corte temporal corrigido,
+com intervalos registrados em `report.json`, permitindo comparar o mesmo clique.
 Este comando substitui o antigo modo combinado com Arduino; o diagnóstico manual
 de leitura serial está em `tests/receptor_eventos.py` (ajuste a porta antes de
 executar). Captura física, serial física e cloud são validações distintas.
