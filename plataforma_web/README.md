@@ -1,142 +1,203 @@
-# 📱 Click Lance — Plataforma Web
+# ClickLance — Plataforma Web
 
-> Site e PWA do jogador (QR code da quadra, lista de lances, player, compartilhamento) e landing comercial para donos de quadra. Construído em Next.js com camada de API trocável entre mock e backend real.
+Interface web para encontrar arenas e quadras. O projeto usa Next.js e uma
+camada de dados com adaptadores mock e HTTP.
 
----
+**Estado atual:** landing, busca de arenas e detalhe com quadras implementados.
+O modo padrão usa dados fictícios. Player, login, biblioteca e instalação PWA
+ainda não têm implementação de interface neste módulo.
 
-## 🧰 Stack
+O piloto é gratuito, com biblioteca pessoal; pagamentos ficam para outra fase.
+As políticas reais seguem as [decisões do backend](../docs/overview_backend_refinamento.md).
 
-| Peça | Escolha | Por quê |
-|---|---|---|
-| Framework | **Next.js 16** (App Router) + React 19 + TypeScript | Rotas de servidor para link compartilhado com preview, PWA e SEO da landing no mesmo projeto |
-| Estilo | **Tailwind CSS 4** | Tema escuro em tokens CSS, mobile-first sem CSS solto |
-| Dados | **TanStack Query** | Cache, polling da partida ao vivo e retry pensado para sinal fraco |
-| Vídeo | `<video>` nativo + **hls.js** | MP4 direto; HLS só quando o backend entregar stream |
-| Ícones | lucide-react | Leve e consistente |
-| Qualidade | ESLint, Prettier, Vitest + Testing Library | Mesmos comandos no CI e na máquina |
+## Executar localmente
 
-Requisitos: **Node 24+** e **npm**.
+Use **Node.js 24.15.0 ou superior na linha 24** e npm para atender aos requisitos
+das dependências do lockfile, incluindo jsdom e Vitest. O projeto ainda não fixa
+o runtime por `engines` ou `.nvmrc`.
 
----
-
-## 🚀 Como rodar
+Na raiz do repositório, em PowerShell:
 
 ```powershell
 cd plataforma_web
-npm install
-cp .env.example .env
+node --version
+npm --version
+npm ci
+Copy-Item .env.example .env.local
 npm run dev
 ```
 
-Abra [http://localhost:3000](http://localhost:3000). Por padrão a plataforma sobe em **modo mock**: não precisa de backend, S3 nem gateway ligado.
+Crie `.env.local` somente se ele ainda não existir, preservando sua configuração.
+Abra [http://localhost:3000](http://localhost:3000).
 
-### Scripts
+O modo mock dispensa backend, gateway e AWS para as consultas demonstrativas.
+Instalação de dependências, fontes Google e mídias externas podem precisar de
+internet; mock não significa funcionamento offline completo.
 
-| Comando | O que faz |
-|---|---|
-| `npm run dev` | Servidor de desenvolvimento com hot reload |
-| `npm run build` / `npm start` | Build de produção e servidor |
-| `npm run lint` | ESLint (regras do Next + TypeScript) |
-| `npm run typecheck` | `tsc --noEmit` |
-| `npm test` | Testes unitários e de componente (Vitest) |
-| `npm run format` | Prettier em tudo |
-| `npm run verificar` | Lint, typecheck, testes e build em sequência. Rode antes de abrir PR |
+Para executar o build de produção local:
 
----
-
-## 📁 Estrutura de pastas
-
+```powershell
+npm run build
+npm start
 ```
+
+## O que está disponível
+
+| Camada | Disponível | Limite atual |
+|---|---|---|
+| Landing `/` | Apresentação do produto e acesso à busca. | Textos sobre assistir, baixar e compartilhar descrevem a jornada pretendida. |
+| Busca `/arenas` | Filtro por nome/localidade, carregamento, vazio, erro e nova tentativa. | Dados fictícios no modo padrão. |
+| Arena `/arenas/[slug]` | Nome, localização e quadras com estados demonstrativos. | Cartões de quadra ainda não abrem a jornada de lances. |
+| API mock | Arenas, quadras, faixas horárias, lances, SMS, favoritos e solicitação comercial simulados. | Métodos da API não equivalem a telas implementadas. |
+| API HTTP | Transporte JSON, Bearer e tradução de erros. | Rotas propostas; integração com o backend atual pendente. |
+| Player/HLS | Dependência `hls.js` declarada. | Player ainda não implementado. |
+| PWA | Metadados básicos de aplicação e viewport. | Sem manifesto ou service worker implementado. |
+
+Rotas como `/q/[quadraId]`, `/quadra/[id]`, `/lance/[id]`, `/entrar` e
+`/meus-lances` ainda não existem no App Router. Também não há área administrativa
+web nem formulário comercial implementado.
+
+## Stack
+
+| Componente | Uso |
+|---|---|
+| Next.js 16.3.8 | App Router, layouts e metadados. |
+| React / React DOM 19.2.8 | Interface e componentes. |
+| TypeScript | Tipos do domínio e da API. |
+| Tailwind CSS 4 | Estilos e tokens do tema em `globals.css`. |
+| TanStack Query | Consultas, cache e retentativas. |
+| Lucide React | Ícones. |
+| Vitest, Testing Library e jsdom | Testes de lógica e componentes. |
+| ESLint e Prettier | Análise e formatação. |
+
+Versões declaradas em [package.json](package.json) e resolvidas em
+[package-lock.json](package-lock.json). Use `npm ci` para instalar pelo lockfile.
+
+## Configuração
+
+Use `.env.local`, ignorado pelo Git. Variáveis `NEXT_PUBLIC_` podem ser
+publicadas no navegador: não coloque segredos nelas. Reinicie o servidor após
+alterações; para produção, gere novo build.
+
+| Variável | Exemplo / padrão | Finalidade |
+|---|---|---|
+| `NEXT_PUBLIC_API_MODE` | `mock` | Somente o valor exato `http` seleciona HTTP; ausente ou diferente usa mock. |
+| `NEXT_PUBLIC_API_URL` | Exemplo: `http://localhost:8080/api`; fallback: `/api`. | Base dos caminhos do adaptador HTTP. |
+| `NEXT_PUBLIC_SITE_URL` | `http://localhost:3000` | Base válida para metadados. |
+| `NEXT_PUBLIC_MOCK_LATENCIA` | `450` | Latência média simulada, em ms; `0` elimina a espera. |
+| `NEXT_PUBLIC_MOCK_FALHAS` | `0` | Fração de falhas simuladas entre 0 e 1; aceita pelo código, ainda ausente do exemplo. |
+
+A seleção fica em [src/lib/api/index.ts](src/lib/api/index.ts).
+Falha da API HTTP não ativa mocks automaticamente.
+
+## Camada de dados e integração real
+
+As telas usam a interface [ClickLanceApi](src/lib/api/cliente.ts) através dos
+hooks em `src/lib/consultas/`. Os [tipos](src/lib/api/tipos.ts) e
+[erros](src/lib/api/erros.ts) ficam junto dos adaptadores:
+
+- [Mock](src/lib/api/mock/index.ts): desenvolvimento demonstrativo e testes.
+- [HTTP](src/lib/api/http/index.ts): requisições ao servidor configurado.
+
+O adaptador HTTP espera caminhos para arenas, quadras, partidas, lances, SMS,
+favoritos e solicitações comerciais. São propostas do frontend, **não contratos
+já implementados no backend**. A fonte dos contratos é a
+[OpenAPI do backend](../backend/openapi.yaml).
+
+O backend atual oferece sessões administrativas e empresas em
+`/api/v1/admin/...`; este cliente ainda não implementa esse fluxo. Mudar apenas
+o modo e a URL base não torna os projetos compatíveis. É preciso alinhar
+caminhos, schemas, paginação, autenticação e erros no adaptador.
+Não alterar o backend para atender silenciosamente a rotas provisórias do mock.
+
+A integração do jogador depende das histórias BE-013–021 e das decisões
+aplicáveis. O tipo `Partida` representa faixas horárias no protótipo; não cria
+uma entidade Partida no backend. SMS e retenção do mock não definem políticas reais.
+
+O adaptador HTTP atual guarda a sessão em `localStorage`, com os mesmos helpers
+do mock. Essa escolha precisa ser revista com a política de sessão antes de usar
+contas reais; não representa a autenticação administrativa de BE-003. Ao alternar
+modos, remova apenas as chaves `clicklance:` da origem da aplicação para não
+reaproveitar uma sessão demonstrativa.
+
+## Comportamento do mock
+
+- Arenas e quadras fictícias ficam em [mock/dados.ts](src/lib/api/mock/dados.ts).
+  O rótulo “Gravando” é demonstrativo, sem telemetria de câmera real.
+- Faixas de uma hora são chamadas de partidas, incluindo a hora atual
+  `ao_vivo`. O histórico padrão é de nove dias.
+- Lances usam geração por semente e mídias públicas em `storage.googleapis.com`;
+  não são gravações da quadra.
+- Na consulta de lances ao vivo, a simulação considera um lance após 15 segundos,
+  os seguintes a cada 30 segundos e oito segundos no estado `processando`.
+  Ainda não há tela ou polling de lances para apresentar esse fluxo.
+- A retenção demonstrativa é de sete dias. A política real segue D04–D06.
+- Após solicitar um código para um telefone demonstrativo com DDD, o código
+  aceito é `123456`, válido por cinco minutos. Nenhum SMS é enviado.
+- Sessão, favoritos, códigos e início da simulação usam chaves `clicklance:` no
+  `localStorage`. Favoritos não são isolados por usuário como uma biblioteca real.
+- Solicitação comercial valida campos e gera protocolo fictício; não envia
+  email nem registra contato em serviço externo.
+
+Esses recursos podem ser exercitados pelos métodos da API e testes mesmo sem
+tela correspondente. Não comprovam autorização, persistência cloud ou hardware.
+
+## Estrutura
+
+```text
 plataforma_web/
-├── public/                  # Ícones, manifest e arquivos estáticos
-└── src/
-    ├── app/                 # Rotas (App Router)
-    │   ├── (institucional)/ # Landing e páginas comerciais, com rodapé
-    │   ├── (jogador)/       # Fluxo do jogador: busca, quadra, lances, player
-    │   ├── layout.tsx       # HTML base, fontes, metadados e provedores
-    │   └── globals.css      # Tokens do tema escuro (Tailwind @theme)
-    ├── components/
-    │   ├── ui/              # Primitivos: Botao, CampoBusca, Esqueleto, EstadoVazio, EstadoErro, Marca
-    │   ├── layout/          # Cabecalho, Rodape
-    │   └── arenas/          # Componentes do domínio (CartaoArena, BuscaArenas...)
-    ├── hooks/               # Hooks genéricos (useValorAtrasado...)
-    ├── lib/
-    │   ├── api/             # Camada de API (veja abaixo)
-    │   ├── consultas/       # Hooks do TanStack Query por recurso + chaves de cache
-    │   └── utils/           # Formatação de data/hora/telefone, cn()
-    └── test/                # Setup do Vitest
+  src/
+    app/
+      (institucional)/    landing e layout institucional
+      (jogador)/arenas/   busca e detalhe por slug
+      layout.tsx         fontes, metadados e estrutura base
+      provedores.tsx     provider do TanStack Query
+      globals.css        tokens de tema e estilos globais
+    components/
+      arenas/            busca e cartões de arena/quadra
+      layout/            cabeçalho e rodapé
+      ui/                botões, campos e estados de interface
+    hooks/               hooks compartilhados
+    lib/
+      api/               interface, tipos, erros e adaptadores
+      consultas/         hooks e chaves de cache
+      utils/             formatação e utilitários
+    test/                setup dos testes
+  package.json
+  package-lock.json
+  .env.example
 ```
 
-Convenções que seguimos:
+O domínio usa nomes em português; a estrutura técnica usa `components`, `hooks`
+e `lib`. Cores compartilhadas vêm dos tokens de `globals.css`. Os formatadores
+atuais usam o fuso do ambiente; a integração real deverá respeitar o fuso da quadra.
 
-- **Domínio em português** (Arena, Quadra, Partida, Lance, `CartaoArena`, `useArenas`); estrutura técnica em inglês (`components`, `lib`, `hooks`).
-- **Mobile-first.** Layout do jogador tem largura máxima pequena e toques de pelo menos 44 px. Teste no celular, de preferência com rede lenta no DevTools.
-- **Tema por tokens.** Cores vêm de `globals.css` (`bg-surface`, `text-muted`, `bg-primary`...). Não use hex solto em componente.
-- **Estados sempre tratados:** carregando (skeleton), vazio, erro e offline têm componente próprio.
+## Comandos de desenvolvimento
 
----
-
-## 🔌 Camada de API
-
-Todas as telas falam com uma única interface, `ClickLanceApi` (`src/lib/api/cliente.ts`), através dos hooks em `src/lib/consultas/`. Existem duas implementações:
-
-| Implementação | Arquivo | Quando usar |
-|---|---|---|
-| **mock** | `src/lib/api/mock/` | Desenvolvimento local, demos e testes. Padrão. |
-| **http** | `src/lib/api/http/` | Contra a API real (Spring Boot). |
-
-A escolha é feita em `src/lib/api/index.ts` lendo o `.env`:
-
-```env
-NEXT_PUBLIC_API_MODE=http
-NEXT_PUBLIC_API_URL=https://api.clicklance.com.br/api
-```
-
-### Como trocar o mock pela API real
-
-1. Suba a API e aponte `NEXT_PUBLIC_API_URL` para ela.
-2. Troque `NEXT_PUBLIC_API_MODE` para `http`.
-3. Confira as rotas em `src/lib/api/http/index.ts`. Elas são a nossa proposta de contrato; se o backend usar outro caminho ou formato, ajuste **só ali**. Nenhuma tela precisa mudar.
-
-Rotas que o cliente HTTP espera hoje:
-
-| Método | Rota | Retorno |
-|---|---|---|
-| GET | `/arenas?busca=` | `Arena[]` |
-| GET | `/arenas/slug/{slug}` · `/arenas/{id}` | `Arena` |
-| GET | `/arenas/{id}/quadras` | `Quadra[]` |
-| GET | `/quadras/{id}` | `Quadra` |
-| GET | `/quadras/{id}/contexto` | `{ arena, quadra, partidaAtual }` (deep link do QR) |
-| GET | `/quadras/{id}/partidas?dias=` | `Partida[]` |
-| GET | `/partidas/{id}` | `Partida` |
-| GET | `/partidas/{id}/lances?desde=` | `Lance[]` |
-| GET | `/lances/{id}` | `Lance` |
-| POST | `/auth/sms` · `/auth/sms/confirmar` · `/auth/sair` | Login por código SMS |
-| GET | `/auth/sessao` | `Sessao` |
-| GET/PUT/DELETE | `/favoritos` · `/favoritos/{lanceId}` | Favoritos do usuário |
-| POST | `/comercial/demonstracoes` | Pedido de demonstração da landing |
-
-Os tipos trafegados estão em `src/lib/api/tipos.ts`. Datas são sempre ISO 8601. Erros viram `ErroApi` com um `codigo` (`nao_encontrado`, `rede`, `expirado`...) que as telas usam para decidir o que mostrar.
-
-### O que o mock faz
-
-- **Arenas e quadras fictícias** em `src/lib/api/mock/dados.ts`. Nomes e cidades são inventados.
-- **Partidas** são as faixas de uma hora cheia da quadra (ex.: 20h – 21h). A hora atual sempre existe como partida **ao vivo**; é nela que o QR code cai.
-- **Lances** são gerados por semente a partir do id da partida, então são sempre os mesmos para a mesma URL. Vídeos e thumbnails são amostras públicas do Google até termos clipes reais.
-- **Simulação ao vivo:** ao abrir uma partida em andamento, um lance novo aparece 15 s depois e mais um a cada 30 s, primeiro como "processando" e depois "disponível".
-- **Lance expirado:** lances com mais de 7 dias vêm com status `expirado`.
-- **Login por SMS:** qualquer celular com DDD; o código é sempre **123456**.
-- **Favoritos e sessão** ficam no `localStorage`.
-- `NEXT_PUBLIC_MOCK_LATENCIA` controla a latência simulada e `NEXT_PUBLIC_MOCK_FALHAS` (0 a 1) faz uma fração das chamadas falhar, para testar as telas de erro.
-
----
-
-## 🗺️ Rotas
-
-| Rota | Tela |
+| Comando | Ação |
 |---|---|
-| `/` | Landing comercial |
-| `/arenas` | Busca de arena/quadra |
-| `/arenas/[slug]` | Quadras da arena |
+| `npm run dev` | Servidor de desenvolvimento. |
+| `npm run build` | Build de produção. |
+| `npm start` | Executar o build já gerado. |
+| `npm run lint` / `npm run lint:fix` | Analisar código / aplicar correções disponíveis. |
+| `npm run typecheck` | Executar `tsc --noEmit`. |
+| `npm test` / `npm run test:watch` | Executar testes uma vez / acompanhar alterações. |
+| `npm run format` / `npm run format:check` | Formatar arquivos / conferir formatação. |
+| `npm run verificar` | Lint, typecheck, testes e build, nessa ordem; não inclui `format:check`. |
 
-As próximas etapas adicionam `/q/[quadraId]` (deep link do QR), `/quadra/[id]` (partidas e lances), `/lance/[id]` (player e compartilhamento), `/entrar` e `/meus-lances`.
+Há testes de API mock, formatação e cartão de arena. Eles não comprovam integração
+com Spring Boot, reprodução de vídeo ou instalação PWA. A existência dos scripts
+não significa que as verificações passaram; registre os resultados ao executá-las.
+
+## Próximos recortes
+
+1. Alinhar o adaptador HTTP aos contratos disponíveis no backend.
+2. Definir a sessão real do jogador e identificar visualmente o modo demonstrativo.
+3. Implementar quadra/data/horário e lances conforme as APIs forem entregues.
+4. Implementar reprodução autorizada e biblioteca segundo as políticas aprovadas.
+5. Avaliar PWA com regras explícitas de cache e acesso offline.
+
+O [documento da plataforma](../docs/plataforma_web.md) descreve o planejamento
+funcional; este README registra a estrutura e os comandos observados neste módulo.
+Consulte o [backlog](../docs/sprints_backend.md) e o
+[guia do backend](../backend/README.md).

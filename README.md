@@ -10,7 +10,7 @@ Replay de jogadas para quadras de futsal e society. O jogador aciona um botão f
 |---|---|
 | Gateway | Captura IP/RTSP, replay temporal, aceite SQLite, pipeline recuperável, configuração remota e operação Windows implementados. |
 | Botão | Protocolo CL1 implementado; firmware compilado para Mega. Validação física pendente. |
-| Backend | Refinamento documental; projeto e migrations ainda não implementados. |
+| Backend | Fundação, autenticação administrativa e empresas implementadas em BE-001–004, entregues para revisão. Integração cloud e demais cadastros pendentes. |
 | Frontend | Ainda não implementado. |
 | Piloto | Hardware, AWS/backend reais e jornada completa ainda dependem de homologação. |
 
@@ -23,6 +23,8 @@ O [relatório de homologação](docs/homologacao_2026-10-15.md) registra 67 test
 | [Visão do backend](docs/overview_backend_refinamento.md) | Escopo, decisões pendentes e primeira entrega. Comece aqui. |
 | [Catálogo de requisitos](docs/requisitos_e_regras_mvp.md) | RF, RN, RNF e critérios de aceite; propostas identificadas. |
 | [Sprints e histórias do backend](docs/sprints_backend.md) | Fila BE-001–031, dependências, recortes e verificações para execução por agentes. |
+| [Plataforma web](docs/plataforma_web.md) | Escopo, jornadas, telas, stack proposta e dependências do frontend. |
+| [Guia do backend](backend/README.md) | Ambiente local, sessões administrativas e provisionamento. |
 | [Contrato cloud v1](docs/contrato_cloud_gateway_v1.md) | Integração com o gateway existente. |
 | [Modelo de dados](docs/modelagem_banco_de_dados.md) | Invariantes antes das migrations; sem DDL duplicado. |
 | [Guia do gateway](gateway_captura/README.md) | Configuração, execução e diagnóstico local. |
@@ -35,7 +37,7 @@ O [relatório de homologação](docs/homologacao_2026-10-15.md) registra 67 test
 ```text
 botao_local/        Firmware do botão
 gateway_captura/   Captura, processamento e envio locais
-backend/           Reservado ao backend cloud
+backend/           API Spring Boot, autenticação e empresas; evolução cloud em andamento
 frontend/          Reservado à plataforma web
 docs/              Referências atuais e evidências
 ```
