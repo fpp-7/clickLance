@@ -40,7 +40,7 @@ frontend/          Reservado à plataforma web
 docs/              Referências atuais e evidências
 ```
 
-Stack prevista no repositório: Python/FFmpeg no gateway; Java/Spring Boot, PostgreSQL e Flyway no backend; storage privado para os clipes. Versões e ambiente do backend serão definidos ao implementar.
+
 
 ## Visão original e evidências
 
