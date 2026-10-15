@@ -2,8 +2,8 @@
 video_processor.py — Worker Thread que processa lances.
 
 Pipeline por evento:
-  1. Selecionar segmentos recentes do DVR.
-  2. Concatenar via FFmpeg num único arquivo de lance.
+  1. Recuperar janela reservada no instante do clique.
+  2. Aguardar cobertura, cortar e validar o clipe.
   3. Upload do lance para o AWS S3.
   4. Notificar a API Spring Boot (POST).
   5. Limpar o arquivo local do lance.
@@ -12,8 +12,9 @@ Pipeline por evento:
 import os
 import subprocess
 import threading
-import time
+import tempfile
 from datetime import datetime
+from pathlib import Path
 from queue import Queue
 
 import boto3
@@ -23,23 +24,24 @@ from botocore.exceptions import ClientError, NoCredentialsError
 from .config import Config
 from .dvr_manager import DVRManager
 from .logger import logger
+from .media import validate_video
 
 
 class VideoProcessor(threading.Thread):
     """Consumidor: lê eventos da fila e executa o pipeline completo de lance."""
 
-    def __init__(self, event_queue: Queue, dvr: DVRManager) -> None:
+    def __init__(self, event_queue: Queue, dvr: DVRManager, *, s3_client=None) -> None:
         super().__init__(name="WorkerThread", daemon=True)
         self.queue = event_queue
         self.dvr = dvr
+        self._active_ffmpeg = None
 
-        self.segments_to_concat: int = Config.SEGMENTS_TO_CONCAT
         self.output_dir: str = Config.OUTPUT_DIR
         self.quadra_id: str = Config.QUADRA_ID
         self.api_url: str = Config.API_URL
 
         # Inicializa o cliente S3
-        self.s3_client = boto3.client(
+        self.s3_client = s3_client if s3_client is not None else boto3.client(
             "s3",
             aws_access_key_id=Config.AWS_ACCESS_KEY_ID,
             aws_secret_access_key=Config.AWS_SECRET_ACCESS_KEY,
@@ -66,44 +68,42 @@ class VideoProcessor(threading.Thread):
                 logger.info("Worker: NOVO LANCE — timestamp %s", dt_str)
                 logger.info("=" * 60)
 
-                self._process_event(timestamp, dt_str)
+                self._process_event(timestamp, dt_str, event.get('replay'))
 
             except Exception as exc:
                 logger.error("Worker: Erro crítico no pipeline → %s", exc, exc_info=True)
             finally:
                 self.queue.task_done()
 
-    def _process_event(self, timestamp: float, dt_str: str) -> None:
+    def _process_event(self, timestamp: float, dt_str: str, replay: dict | None = None) -> str:
         """Executa o pipeline completo para um único evento."""
-        clip_path: str | None = None
+        if replay is None:
+            raise ValueError('REPLAY_CONTEXT_REQUIRED')
+        request, records = self.dvr.wait_replay(replay['id'])
+        clip_path = os.path.join(self.output_dir, f"lance_{request['id']}.mp4")
+        self._render_replay(request, records, clip_path)
+        # A fonte só é liberada depois de clipe validado; falha na geração conserva reserva.
+        self.dvr.catalog.release(request['id'])
+        video_url = self._upload_to_s3(clip_path)
+        self._notify_backend(timestamp, video_url)
+        self._cleanup(clip_path)
+        logger.info('Worker: Replay %s enviado e registrado.', request['id'])
+        return clip_path
 
-        try:
-            # 1. Selecionar segmentos
-            segments = self.dvr.get_recent_segments(self.segments_to_concat)
-            if not segments:
-                logger.warning("Worker: Nenhum segmento completo disponível ainda. Lance descartado.")
-                return
-
-            # 2. Concatenar
-            clip_filename = f"lance_{dt_str}.mp4"
-            clip_path = os.path.join(self.output_dir, clip_filename)
-            self._concatenate_segments(segments, clip_path)
-
-            # 3. Upload S3
-            video_url = self._upload_to_s3(clip_path)
-
-            # 4. Notificar API
-            self._notify_backend(timestamp, video_url)
-
-            logger.info("Worker: ✅ Lance %s processado com sucesso!", clip_filename)
-
-        except Exception as exc:
-            logger.error("Worker: ❌ Falha no pipeline do lance → %s", exc)
-
-        finally:
-            # 5. Limpeza local (mesmo se algum passo falhou parcialmente)
-            if clip_path:
-                self._cleanup(clip_path)
+    def _render_replay(self, request: dict, records: list[dict], output_path: str):
+        offset = request['start'] - records[0]['start']
+        duration = request['end'] - request['start']
+        if offset < -0.001 or duration <= 0:
+            raise ValueError('INVALID_REPLAY_INTERVAL')
+        # Recodificação é deliberada: cópia não garante bordas arbitrárias.
+        options = ['-ss', f'{max(0, offset):.6f}', '-t', f'{duration:.6f}',
+                   '-map', '0:v:0', '-an', '-c:v', 'libx264', '-preset', 'veryfast',
+                   '-crf', '18', '-pix_fmt', 'yuv420p', '-movflags', '+faststart']
+        options.extend(['-maxrate', str(Config.CAPACITY_BITRATE), '-bufsize', str(Config.CAPACITY_BITRATE * 2)])
+        self._concat([r['path'] for r in records], output_path, options)
+        actual_duration = validate_video(Path(output_path))
+        if abs(actual_duration - duration) > 0.05:
+            raise ValueError('INVALID_REPLAY_DURATION')
 
     # ------------------------------------------------------------------
     # ETAPA 1: CONCATENAÇÃO FFMPEG
@@ -113,14 +113,22 @@ class VideoProcessor(threading.Thread):
         Concatena uma lista de segmentos .mp4 num único arquivo usando
         o demuxer 'concat' do FFmpeg (sem re-encode — ultra rápido).
         """
-        # Cria arquivo de lista temporário exigido pelo FFmpeg concat
-        concat_list_path = os.path.join(self.output_dir, "concat_list.txt")
+        self._concat(segments, output_path, ['-c', 'copy'])
 
-        with open(concat_list_path, "w", encoding="utf-8") as f:
-            for seg_path in segments:
-                # FFmpeg exige caminhos absolutos ou relativos com '/'
-                abs_path = os.path.abspath(seg_path).replace("\\", "/")
-                f.write(f"file '{abs_path}'\n")
+    def _concat(self, segments: list[str], output_path: str, output_options: list[str]):
+        if not segments:
+            raise ValueError('EMPTY_REPLAY_SOURCES')
+        lines = []
+        for seg_path in segments:
+            abs_path = os.path.abspath(seg_path).replace('\\', '/')
+            if '\n' in abs_path or '\r' in abs_path:
+                raise ValueError('INVALID_SOURCE_PATH')
+            escaped = abs_path.replace("'", "'\\''")
+            lines.append(f"file '{escaped}'\n")
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.ffconcat',
+                                         dir=self.output_dir, encoding='utf-8', delete=False) as f:
+            concat_list_path = f.name
+            f.writelines(lines)
 
         command = [
             "ffmpeg",
@@ -128,7 +136,7 @@ class VideoProcessor(threading.Thread):
             "-f", "concat",
             "-safe", "0",
             "-i", concat_list_path,
-            "-c", "copy",
+            *output_options,
             output_path,
         ]
 
@@ -136,13 +144,10 @@ class VideoProcessor(threading.Thread):
         logger.debug("Worker: Segmentos: %s", [os.path.basename(s) for s in segments])
         logger.debug("Worker: Comando → %s", " ".join(command))
 
-        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-
-        # Limpa o arquivo temporário de concat
         try:
+            result = self._execute(command)
+        finally:
             os.remove(concat_list_path)
-        except OSError:
-            pass
 
         if result.returncode != 0:
             logger.error("Worker: FFmpeg concat falhou → %s", result.stderr[-1000:])
@@ -150,6 +155,25 @@ class VideoProcessor(threading.Thread):
 
         file_size_mb = os.path.getsize(output_path) / (1024 * 1024)
         logger.info("Worker: Clipe gerado (%.1f MB): %s", file_size_mb, output_path)
+
+    def _execute(self, command):
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        self._active_ffmpeg = process
+        try:
+            try:
+                stdout, stderr = process.communicate(timeout=Config.REPLAY_FFMPEG_TIMEOUT_SECONDS)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.communicate()
+                raise
+            return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+        finally:
+            self._active_ffmpeg = None
+
+    def cancel(self):
+        process = self._active_ffmpeg
+        if process is not None and process.poll() is None:
+            process.kill()
 
     # ------------------------------------------------------------------
     # ETAPA 2: UPLOAD S3
@@ -205,7 +229,7 @@ class VideoProcessor(threading.Thread):
     # ------------------------------------------------------------------
     @staticmethod
     def _cleanup(file_path: str) -> None:
-        """Remove o clipe local após o processamento (sucesso ou falha)."""
+        """Remove o clipe local após upload e registro confirmados."""
         try:
             if os.path.exists(file_path):
                 os.remove(file_path)

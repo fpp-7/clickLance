@@ -7,6 +7,16 @@ venv/
 
 # Logs
 *.log
+qa-results.json
+
+# Bancos operacionais e arquivos auxiliares do SQLite
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Copias locais de seguranca
+/backups/
 
 # Segmentos de vídeo gravados pelo DVR
 segments/
