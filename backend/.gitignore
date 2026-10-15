@@ -4,3 +4,4 @@
 !/.env.example
 /.postgres/
 *.log
+/.local-secrets/

@@ -1,6 +1,6 @@
 # Backend — sprints e histórias de implementação
 
-Atualizado em 15/10/2026. BE-001 implementada e proposta para revisão; demais histórias em planejamento. Piloto gratuito com biblioteca, pagamentos depois.
+Atualizado em 15/10/2026. BE-001–004 entregues para revisão; BE-005 em diante aguardam as dependências correspondentes. Piloto gratuito com biblioteca, pagamentos depois.
 
 Este é o único backlog do backend. As histórias referenciam o [catálogo de requisitos](requisitos_e_regras_mvp.md), as [decisões D01–D14](overview_backend_refinamento.md#3-o-que-falta-e-quando-precisa-estar-resolvido), as [diretrizes de dados](modelagem_banco_de_dados.md) e o [contrato cloud v1](contrato_cloud_gateway_v1.md). Não copiar payloads ou DDL para este arquivo. Os IDs `US-01–12` do catálogo são referências anteriores; os IDs executáveis deste plano são `BE-001–031`.
 
@@ -17,7 +17,7 @@ Uma história por tarefa. Escolher a primeira elegível na ordem abaixo; conclui
 | Em revisão | Implementação e verificações disponíveis para revisão. |
 | Concluída | Aceites e verificações passaram; resultado revisado e integrado. |
 
-**Fila atual:** BE-001 está em revisão, com [implementação e evidências locais](../backend/README.md#estado-e-evidências); BE-002 está pronta para refinamento. Todas as demais aguardam dependências e, quando indicado, decisões. Não criar endpoints fictícios, bypass de autorização ou políticas silenciosas para declarar uma história concluída.
+**Fila atual:** BE-001/002 continuam como base entregue para revisão; BE-003/004 foram executadas sequencialmente por solicitação explícita do responsável, sobre essa base presente no workspace, e estão em revisão com as evidências nas fichas abaixo. BE-005 é o próximo recorte de implementação após revisão/integração das dependências. As demais histórias aguardam implementações e decisões ainda abertas quando indicadas. Não criar endpoints fictícios, bypass de autorização ou políticas silenciosas para declarar uma história concluída.
 
 Cada ficha abaixo define **objetivo**, **dependências/decisões**, **escopo**, **aceite**, **verificação** e **referências**. Os caminhos são relativos à raiz do repositório. A estrutura interna de pacotes e os comandos serão fixados em BE-001; fichas seguintes referem-se a módulos lógicos, sem impor arquivos ainda inexistentes.
 
@@ -66,6 +66,8 @@ Sprints posteriores permanecem condicionadas às decisões indicadas. A autoriza
 
 - **Objetivo:** como responsável pela implementação, ter comportamento definido para schema, autorização e ingestão antes de codificá-los.
 - **Depende de:** nenhuma história. **Estado inicial:** pronta para refinamento; entrega documental.
+- **Estado atual:** em revisão (15/10/2026). Produto confirmou D04–D06, D08, D10 e os recortes administrativo de D12 e temporal de D13 na sessão. Escolhas técnicas, papéis, bootstrap, autorização, sessão e verificação do objeto registrados na visão; schemas/erros em `backend/openapi.yaml`. D02/D03 e demais políticas futuras não foram presumidas.
+- **Evidência local:** `backend/.venv/Scripts/python.exe -X utf8 backend/tools/validate_contract.py` (a partir da raiz) aprovou 10 verificações, sem ignorados. Estrutura OpenAPI/referências/exemplos, limites da configuração, payload e ACK do cliente real v1 e classificação de erros verificados com HTTP substituído, sem modificar o cliente. Comandos de instalação no README do backend. Isso não valida autorização implementada, integração AWS ou endpoints reais; nenhuma migration ou funcionalidade BE-003 foi criada.
 - **Escopo:** atualizar as decisões existentes na visão, sem criar outro registro concorrente. Tratar D04–D06, D08, D10 e D13 para a primeira integração; definir política de autenticação administrativa e seus limites de sessão, relacionada a D12. Separar decisões técnicas justificadas de respostas de produto ainda ausentes. D02/D03 não precisam ser fechadas para iniciar BE-001.
 - **Aceite:** limite/default/unidade da retenção, chegada tardia, política aplicada ao evento, origem/alocação, inativação inicial e tolerância de relógio estão determinados ou explicitamente bloqueados. Definir papéis plataforma/empresa, bootstrap e validação da sessão administrativa, inclusive expiração/inativação. Definir schemas e erros dos cadastros/configuração em OpenAPI versionada em `backend/`, sem divergir do contrato v1. Decidir estratégia de verificação do objeto e suas limitações antes de BE-010.
 - **Verificação:** conferir coerência entre decisões, catálogo, OpenAPI e cliente v1. Exemplos precisam validar contra o schema quando houver ferramental. Não marcar uma decisão aprovada apenas por constar como recomendação.
@@ -77,6 +79,8 @@ Sprints posteriores permanecem condicionadas às decisões indicadas. A autoriza
 
 - **Objetivo:** como operador, administrar somente os recursos permitidos à minha identidade.
 - **Depende de:** BE-001 e recorte de autenticação/papéis/sessão de BE-002 resolvido.
+- **Estado atual:** em revisão (15/10/2026). JWT RS256 de 60 minutos com sessão durável, hash de jti, revogação, consulta de usuário/vínculos a cada requisição, BCrypt, bootstrap explícito e provisionamento operacional de administrador de empresa implementados em `backend/src/main/java/br/com/clicklance/identity`; migrations V2/V3 sem alterar V1. Nenhum cadastro público ou senha padrão.
+- **Evidências:** 7 testes `AdministrativeIdentityIT` aprovados em PostgreSQL/HTTP reais: login/logout, expiração exata, inativação, token adulterado/algoritmo/issuer/audience/sessão inválidos, limite de senha e bootstrap concorrente/idempotente. Teste unitário cobre falha de conexão e de abertura da transação com 503 e sem acesso. Teste de fundação confirma ausência de chaves sem criação de privilégio. JAR executado no perfil bootstrap recusou segredo ausente e aprovou criação/repetição com senha ausente dos logs capturados. Gerador RSA criou o par e recusou sobrescrita.
 - **Escopo:** módulos de identidade/autorização, migrations de papel/vínculo, bootstrap controlado de administrador global e contrato administrativo definido em BE-002. Reutilizar a identidade para jogadores depois, sem cadastro público de administradores.
 - **Aceite:** visitante não administra; administrador de empresa A não obtém poderes em B; cadastro comum não eleva papel; credenciais/sessões inválidas, expiradas ou de identidade inativa seguem a política definida. Bootstrap repetido não cria administradores duplicados nem usa senha padrão de produção.
 - **Verificação:** casos positivos e negativos por papel/empresa, expiração e inativação; aplicação iniciada sem segredo de bootstrap não ganha acesso privilegiado.
@@ -87,6 +91,9 @@ Sprints posteriores permanecem condicionadas às decisões indicadas. A autoriza
 
 - **Objetivo:** como administrador da plataforma, provisionar uma empresa com política válida.
 - **Depende de:** BE-003; D04 e contrato de empresa em BE-002.
+- **Estado atual:** em revisão (15/10/2026). Criação/consulta/listagem de empresa, retenção validada/default, status explícito, ID estável e isolamento por vínculo entregues. V3 cria empresa e fecha a FK dos vínculos introduzidos em V2. Não há cadastro de quadras/dispositivos ou alterações BE-005 nesta entrega.
+- **Evidências:** 6 testes `CompanyIT` aprovados com PostgreSQL/HTTP reais: plataforma cria, tenant não cria nem vê outra empresa, paginação/contagem filtradas, retirada de vínculo/papel tem efeito imediato, entrada inválida não deixa linha parcial, constraints de retenção/FK/unicidade/papel recusam escrita inválida. Provisionamento operacional exige sessão de plataforma e preserva senha/vínculo no reenvio.
+- **Comando conjunto:** em `backend/`, com banco de teste dedicado configurado, `mvnw.cmd -B -ntp -Pintegration '-Ddebug=false' verify`: build aprovado, 16 testes de integração e 1 unitário aprovados, zero ignorados. `backend/.venv/Scripts/python.exe -X utf8 backend/tools/validate_contract.py` (raiz): 10 verificações de contrato aprovadas. PostgreSQL 17.11 temporário real em loopback; migrações V1→V2→V3 e reinicialização sem reaplicação verificadas. Logs locais em `backend/target/be0034-final.log`; relatórios Surefire/Failsafe. Docker Compose, TLS/deploy de produção, frontend e AWS não homologados.
 - **Escopo:** entidade/migration de empresa, criação e consulta administrativa conforme OpenAPI; validar retenção e status. Não implementar vitrine pública.
 - **Aceite:** empresa recebe identidade estável; retenção inválida não é persistida; só administrador global cria; consultas respeitam escopo autorizado e não retornam segredos. Falhas de validação não deixam registro parcial.
 - **Verificação:** criação, consulta por papel e limites de política em PostgreSQL; erro padronizado e transação sem escrita parcial.

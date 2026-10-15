@@ -1,7 +1,8 @@
 # ClickLance Backend
 
-Fundação BE-001. Uma aplicação modular Maven, pacote raiz `br.com.clicklance`.
-Não há entidades, autenticação administrativa ou endpoints de negócio nesta entrega.
+Aplicação modular Maven, pacote raiz `br.com.clicklance`. Inclui a fundação,
+sessões administrativas e cadastro/consulta de empresas (BE-001–004).
+Quadras, dispositivos e integração cloud continuam nas histórias seguintes.
 
 ## Base técnica fixada
 
@@ -24,9 +25,9 @@ Fontes: [requisitos Spring Boot](https://docs.spring.io/spring-boot/system-requi
 ## Estrutura
 
 ```text
-src/main/java/br/com/clicklance/  aplicação; módulos funcionais entram nas próximas histórias
+src/main/java/br/com/clicklance/  aplicação, api, identity e company
 src/main/resources/             configuração e db/migration (fonte executável do schema)
-src/test/java/br/com/clicklance/ testes de integração *IT
+src/test/java/br/com/clicklance/ testes unitários e integração PostgreSQL/HTTP *IT
 .mvn/wrapper/                   versão e checksum da distribuição Maven
 compose.yaml                    PostgreSQL local com volume persistente
 ```
@@ -148,5 +149,162 @@ exercitado pelos testes de integração.
 Docker não está instalado nesta máquina: **Compose não foi executado**. A
 existência da tag da imagem foi conferida no registry, mas não substitui subir o
 container. AWS, deploy e homologação de produção não fazem parte de BE-001.
-BE-002 e as demais histórias não foram iniciadas. A conclusão da história depende
+As demais histórias de implementação não fazem parte desta fundação. A conclusão da história depende
 da revisão e integração, conforme o guia do agente.
+
+## Contratos do primeiro recorte (BE-002)
+
+[`openapi.yaml`](openapi.yaml) é a fonte dos schemas, rotas e erros planejados
+para administração e integração v1. Operações BE-003/004 estão implementadas;
+as demais continuam planejadas, sem endpoints disponíveis. Decisões de produto, autorização, bootstrap, sessão e estratégia de
+verificação de objetos estão na [visão do backend](../docs/overview_backend_refinamento.md).
+BE-002 não alterou o gateway nem acrescentou migrations de domínio.
+
+Para validar o contrato, é necessário Python 3.13 disponível no terminal, além
+do checkout com `gateway_captura/`. Ferramentas Python são só de desenvolvimento;
+a aplicação Java não depende delas. A instalação usa as dependências fixadas do
+cliente para verificar seu código real, sem câmera/Arduino ou conexão cloud:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r tools/requirements-contracts.txt
+.\.venv\Scripts\python.exe -X utf8 tools/validate_contract.py
+```
+
+Se Python não estiver no PATH, use o caminho completo do executável no primeiro
+comando. `backend/.venv/` e logs gerados são ignorados. O validador confere a
+estrutura OpenAPI 3.1, referências, exemplos, parâmetros da configuração e o
+payload/ACK do cliente real com transporte HTTP substituído explicitamente.
+Não testa autorização implementada, banco, AWS ou endpoints do backend.
+
+Validações semânticas adicionais estão declaradas no contrato: vínculo da origem,
+IANA, host RTSP, inteiro lexical, limite de senha em bytes, comparação do
+`Idempotency-Key`, chave S3 e tolerância temporal. Exemplos sintaticamente válidos
+não demonstram esses comportamentos. O progresso e a revisão de BE-002 ficam
+somente na [ficha do backlog](../docs/sprints_backend.md), sem outro status paralelo.
+
+## Administração e empresas (BE-003/004)
+
+Rotas disponíveis: login em `POST /api/v1/admin/sessoes`, identidade em
+`GET /api/v1/admin/sessoes/atual`, logout em `DELETE` no mesmo caminho e
+criação/listagem/consulta de empresas nos caminhos da OpenAPI. JWT usa RS256,
+validade absoluta de 60 minutos e não tem refresh. Cada requisição consulta a
+sessão, o usuário e os vínculos atuais; logout, inativação ou retirada do papel
+não dependem de o token expirar. Uma indisponibilidade do banco recusa acesso
+com 503. Não há autenticação Basic, cookie ou cadastro público de administradores.
+
+V2 cria identidade global, sessão (hash de `jti`) e vínculos administrativos.
+V3 cria empresa e acrescenta a FK do vínculo à empresa. Ambas são migrations
+novas; V1 permanece intacta. Nenhum vínculo órfão é permitido após V3.
+Senhas usam BCrypt custo 12, sem truncamento, com 12–72 bytes UTF-8. Não há
+senhas padrão; chave privada e segredos operacionais ficam fora do Git.
+
+### Chaves e primeiro administrador
+
+Depois de configurar PostgreSQL e `.env`, nesta pasta:
+
+```powershell
+& "$env:JAVA_HOME\bin\java.exe" tools/GenerateAdminKeys.java .local-secrets
+.\mvnw.cmd -B -ntp verify
+```
+
+O gerador cria RSA 3072, PKCS8/X509 PEM e recusa sobrescrever arquivos. Restrinja
+o acesso à pasta ao operador. No `.env` local, habilite as duas linhas
+`ADMIN_JWT_PRIVATE_KEY_PATH` e `ADMIN_JWT_PUBLIC_KEY_PATH` do exemplo. Caminhos
+relativos partem da pasta de execução do backend. Sem ambas as chaves, login
+responde 503 e nenhum administrador é gerado. Um par parcialmente configurado,
+inválido ou incompatível impede startup com orientação para corrigir os PEMs.
+
+O bootstrap exige perfil explícito e segredos no ambiente, sem endpoint HTTP.
+O comando não inicia servidor web:
+
+```powershell
+$env:BOOTSTRAP_ADMIN_EMAIL = Read-Host 'Email do administrador da plataforma'
+$adminSecret = Read-Host 'Senha administrativa (12–72 bytes UTF-8)' -AsSecureString
+$env:BOOTSTRAP_ADMIN_PASSWORD = [System.Net.NetworkCredential]::new('', $adminSecret).Password
+try {
+    & "$env:JAVA_HOME\bin\java.exe" -jar target/backend-0.1.0-SNAPSHOT.jar --spring.profiles.active=bootstrap-admin --spring.main.web-application-type=none
+    if ($LASTEXITCODE -ne 0) { throw 'Bootstrap falhou; confira a mensagem sem reenviar segredos.' }
+} finally {
+    Remove-Item Env:BOOTSTRAP_ADMIN_EMAIL,Env:BOOTSTRAP_ADMIN_PASSWORD -ErrorAction SilentlyContinue
+    Remove-Variable adminSecret -ErrorAction SilentlyContinue
+}
+```
+
+Repetir para o mesmo administrador ativo preserva senha e identidade, inclusive
+com duas execuções concorrentes. Email de outra identidade não é promovido e
+administrador inativo não é reativado por bootstrap. Sem o perfil, essas variáveis
+não criam privilégios. O bootstrap pressupõe acesso operacional ao servidor;
+não é um mecanismo remoto de recuperação de senha.
+
+### Login e criação de empresa
+
+Inicie a aplicação normalmente em outro terminal, a partir de `backend/`, com
+`mvnw.cmd spring-boot:run` ou com o JAR. No terminal do operador:
+
+```powershell
+$adminEmail = Read-Host 'Email administrativo'
+$adminSecret = Read-Host 'Senha administrativa' -AsSecureString
+$loginBody = @{ email=$adminEmail; password=[System.Net.NetworkCredential]::new('', $adminSecret).Password } | ConvertTo-Json
+$session = Invoke-RestMethod http://127.0.0.1:8080/api/v1/admin/sessoes -Method Post -ContentType application/json -Body $loginBody
+Remove-Variable loginBody,adminSecret
+$headers = @{ Authorization="Bearer $($session.access_token)" }
+$empresaBody = @{ nome='Minha Arena'; active=$true; retencao_dias=2 } | ConvertTo-Json
+$empresa = Invoke-RestMethod http://127.0.0.1:8080/api/v1/admin/empresas -Method Post -Headers $headers -ContentType application/json -Body $empresaBody
+```
+
+Somente `PLATFORM_ADMIN` cria empresas. Retenção omitida usa o default definido
+em D04; campo presente inválido é recusado sem escrita parcial. Nome é normalizado
+com strip; IDs opacos são gerados no servidor. Empresa inativa continua consultável
+pelo administrador autorizado para operação; isso não habilita ingestão.
+
+Listagem usa `page=0&size=20` por padrão, até 100 itens, ordem por ID e contagem
+no mesmo escopo. `COMPANY_ADMIN` só vê empresas com vínculo ativo. Consulta por
+ID de outra empresa responde 403 antes de revelar sua existência; plataforma
+recebe 404 para recurso inexistente. Respostas não incluem senhas, hashes ou
+configuração de câmera. JSON/campos extras, booleanos e inteiros são validados
+sem coerção silenciosa. Demais rotas permanecem indisponíveis.
+
+### Provisionar administrador de empresa
+
+Exige empresa criada e uma sessão válida da plataforma (a variável `$session`
+do exemplo). É uma operação explícita de servidor, sem cadastro público:
+
+```powershell
+$env:PROVISION_ADMIN_TOKEN = $session.access_token
+$env:PROVISION_EMPRESA_ID = $empresa.empresa_id
+$env:PROVISION_ADMIN_EMAIL = Read-Host 'Email do administrador da empresa'
+$companySecret = Read-Host 'Senha (usada somente se a conta for nova)' -AsSecureString
+$env:PROVISION_ADMIN_PASSWORD = [System.Net.NetworkCredential]::new('', $companySecret).Password
+try {
+    & "$env:JAVA_HOME\bin\java.exe" -jar target/backend-0.1.0-SNAPSHOT.jar --spring.profiles.active=provision-company-admin --spring.main.web-application-type=none
+    if ($LASTEXITCODE -ne 0) { throw 'Provisionamento falhou.' }
+} finally {
+    Remove-Item Env:PROVISION_ADMIN_TOKEN,Env:PROVISION_EMPRESA_ID,Env:PROVISION_ADMIN_EMAIL,Env:PROVISION_ADMIN_PASSWORD -ErrorAction SilentlyContinue
+    Remove-Variable companySecret -ErrorAction SilentlyContinue
+}
+```
+
+A sessão é validada também nesse processo. Token de administrador de empresa
+não provisiona outros administradores. Repetição não troca senha, não reativa
+usuário/vínculo e não concede papel de plataforma. Para encerrar a sessão:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8080/api/v1/admin/sessoes/atual -Method Delete -Headers $headers
+Remove-Variable session,headers
+```
+
+### Verificação e limites
+
+O comando `mvnw.cmd -B -ntp -Pintegration '-Ddebug=false' verify` usa PostgreSQL
+real e HTTP real, além do teste unitário de falha de acesso ao banco. Os testes
+criam IDs próprios e removem somente suas fixtures; continuam exigindo banco
+dedicado. `verify` sem o perfil executa os testes unitários, mas não os `*IT`.
+Os relatórios estão em `target/surefire-reports/` e `target/failsafe-reports/`.
+
+O [backlog](../docs/sprints_backend.md) registra resultados e estado de revisão.
+Não há frontend, contas de jogadores, cadastros de quadras/dispositivos, auditoria
+BE-007 ou integração AWS neste recorte. TLS de produção, Docker Compose e
+implantação real não foram homologados. Os códigos 429 planejados na OpenAPI
+não significam que um limitador distribuído já foi entregue. Referência técnica:
+[validação JWT no Spring Security](https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/jwt.html).

@@ -1,6 +1,6 @@
 # Backend — diretrizes do modelo de dados
 
-Atualizado em 15/10/2026. Proposta anterior à primeira migration; não há schema cloud executável nesta revisão.
+Atualizado em 15/10/2026. V1 é fundação técnica; V2 implementa identidade/sessão/vínculo administrativo e V3 implementa empresa e a FK do vínculo. As migrations em `backend/src/main/resources/db/migration/` são a fonte executável desses recortes. Quadras, dispositivos e replays ainda não têm schema implementado. As decisões seguem BE-002 e seus schemas OpenAPI.
 
 Os comportamentos estão no [catálogo de requisitos](requisitos_e_regras_mvp.md) e as escolhas abertas na [visão do backend](overview_backend_refinamento.md). Este documento contém apenas os invariantes do modelo.
 
@@ -16,13 +16,13 @@ Os comportamentos estão no [catálogo de requisitos](requisitos_e_regras_mvp.md
 | Objeto | Bucket, chave e SHA-256; referência privada e autorizada. Um objeto por lance no modelo inicial. |
 | Configuração | Versão publicada e parâmetros efetivos compatíveis com v1; separar perfil de quadra e instalação quando necessário. |
 
-## Invariantes antes da primeira migration
+## Invariantes das primeiras migrations de domínio
 
 - `evento_id` único; repetição não modifica conteúdo, origem ou prazo.
 - `(bucket,key)` único no modelo de um objeto por lance.
-- Dispositivo, quadra e empresa coerentes no banco e na aplicação. D10 define vínculo imutável ou histórico de alocação.
+- Dispositivo, quadra e empresa coerentes no banco e na aplicação. D10 confirmada: vínculo imutável no piloto, sem transferir histórico.
 - `timestamp_evento` e recebimento como instantes; fuso civil definido para consulta por horário.
-- Expiração e política aplicada determinadas por D04–D06, sem recalcular silenciosamente eventos existentes.
+- Expiração e snapshot da política aplicada conforme D04–D06 confirmadas em BE-002, sem recalcular eventos existentes no reenvio.
 - URL temporária não é identidade persistida do arquivo.
 - Estado de credencial, bloqueio de acesso e existência física do objeto têm significados distintos.
 
@@ -35,4 +35,4 @@ Os comportamentos estão no [catálogo de requisitos](requisitos_e_regras_mvp.md
 | Purga | Intenção durável, tentativas e confirmação remota; coordenada com novos vínculos. |
 | Bloqueio/auditoria | Ator, motivo e instante; impedir novo acesso sem declarar arquivo já excluído. |
 
-Quando implementadas, as migrations no backend passam a ser a fonte do schema; este documento permanece conceitual. A primeira migration deve garantir os invariantes acima, incluindo identidade de evento, autorização e tratamento de falhas.
+As migrations no backend são a fonte executável do schema; este documento permanece conceitual. Cada migration de domínio deve garantir os invariantes do seu recorte, incluindo identidade de evento, autorização e tratamento de falhas. V1 é somente fundação técnica e não antecipa entidades.

@@ -1,0 +1,794 @@
+openapi: 3.1.0
+info:
+  title: ClickLance — contratos do primeiro recorte
+  version: 0.3.0
+  description: >-
+    Contratos BE-002. BE-003/004 implementam sessão administrativa e empresas;
+    demais operações são planejadas e ainda não estão disponíveis.
+    Decisões e autorização em docs/overview_backend_refinamento.md.
+    Configuração/ingestão preservam o contrato cloud v1 e o cliente existente.
+    Cadastro de empresa requer PLATFORM_ADMIN; demais ações administrativas
+    requerem esse papel ou COMPANY_ADMIN com vínculo ativo à empresa do recurso.
+    Validações entre campos, vínculo, IANA e tipos lexicais são semânticas adicionais.
+servers:
+  - url: http://127.0.0.1:8080
+    description: Desenvolvimento local; TLS obrigatório fora do loopback.
+security:
+  - AdminBearer: []
+tags:
+  - {name: Administração}
+  - {name: Gateway}
+paths:
+  /api/v1/admin/sessoes:
+    post:
+      tags: [Administração]
+      operationId: criarSessaoAdministrativa
+      x-story: BE-003
+      x-implementation-status: implemented
+      security: []
+      summary: Autenticar administrador; não cria usuário ou papel
+      description: >-
+        Email trim/lowercase; senha de 12–72 bytes UTF-8. JWT RS256 válido por
+        3600 segundos, sem refresh. Credencial inválida e usuário inativo têm
+        a mesma resposta genérica. Cache-Control no-store; sem cookies ou redirects.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminLogin'}
+      responses:
+        '201':
+          description: Sessão persistida e JWT emitido
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminSession'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/admin/sessoes/atual:
+    get:
+      tags: [Administração]
+      operationId: consultarSessaoAdministrativa
+      x-story: BE-003
+      x-implementation-status: implemented
+      summary: Consultar identidade e permissões atuais
+      description: JWT não substitui validação de usuário, sessão e vínculo no banco.
+      responses:
+        '200':
+          description: Identidade administrativa sem credenciais
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminIdentity'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+    delete:
+      tags: [Administração]
+      operationId: revogarSessaoAdministrativa
+      x-story: BE-003
+      x-implementation-status: implemented
+      summary: Revogar imediatamente a sessão autenticada
+      responses:
+        '204': {description: Revogação persistida; o mesmo JWT não autoriza nova requisição}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/admin/empresas:
+    post:
+      tags: [Administração]
+      operationId: criarEmpresa
+      x-story: BE-004
+      x-implementation-status: implemented
+      summary: Criar empresa; somente PLATFORM_ADMIN
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/EmpresaCreate'}
+      responses:
+        '201':
+          description: Empresa persistida
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Empresa'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+    get:
+      tags: [Administração]
+      operationId: listarEmpresas
+      x-story: BE-004
+      x-implementation-status: implemented
+      summary: Listar somente empresas autorizadas, ordenadas por ID
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/Size'}
+      responses:
+        '200':
+          description: Página filtrada por vínculo; plataforma vê todas
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/EmpresaPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/admin/empresas/{empresa_id}:
+    parameters:
+      - {$ref: '#/components/parameters/EmpresaId'}
+    get:
+      tags: [Administração]
+      operationId: consultarEmpresa
+      x-story: BE-004
+      x-implementation-status: implemented
+      summary: Consultar empresa autorizada
+      responses:
+        '200':
+          description: Empresa sem configuração de câmera ou credenciais
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Empresa'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/admin/empresas/{empresa_id}/quadras:
+    parameters:
+      - {$ref: '#/components/parameters/EmpresaId'}
+    post:
+      tags: [Administração]
+      operationId: criarQuadra
+      x-story: BE-005
+      summary: Criar quadra na empresa autorizada
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/QuadraCreate'}
+      responses:
+        '201':
+          description: Quadra persistida com empresa e fuso coerentes
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Quadra'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+    get:
+      tags: [Administração]
+      operationId: listarQuadras
+      x-story: BE-005
+      summary: Listar quadras da empresa autorizada por ID
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/Size'}
+      responses:
+        '200':
+          description: Página sem URLs de câmera
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/QuadraPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/admin/empresas/{empresa_id}/quadras/{quadra_id}:
+    parameters:
+      - {$ref: '#/components/parameters/EmpresaId'}
+      - {$ref: '#/components/parameters/QuadraId'}
+    get:
+      tags: [Administração]
+      operationId: consultarQuadra
+      x-story: BE-005
+      summary: Consultar quadra, conferindo empresa do caminho
+      responses:
+        '200':
+          description: Quadra autorizada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Quadra'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/admin/empresas/{empresa_id}/quadras/{quadra_id}/dispositivos:
+    parameters:
+      - {$ref: '#/components/parameters/EmpresaId'}
+      - {$ref: '#/components/parameters/QuadraId'}
+    post:
+      tags: [Administração]
+      operationId: criarDispositivo
+      x-story: BE-006
+      summary: Provisionar dispositivo vinculado à quadra autorizada
+      description: >-
+        Identidade global única e vínculo imutável. Token aleatório de 32 bytes,
+        base64url, devolvido só nesta emissão; hash no banco. Não reapresentar
+        token em retry: conflito 409 exige intervenção de provisionamento/rotação.
+        Configurar DEVICE_ID, QUADRA_ID e S3_BUCKET_NAME localmente no gateway.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DispositivoCreate'}
+      responses:
+        '201':
+          description: Dispositivo e credencial persistidos; segredo exibido uma vez
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DispositivoIssued'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+    get:
+      tags: [Administração]
+      operationId: listarDispositivos
+      x-story: BE-006
+      summary: Listar dispositivos da origem autorizada por ID
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/Size'}
+      responses:
+        '200':
+          description: Página sem token ou hash
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DispositivoPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/admin/dispositivos/{dispositivo_id}:
+    parameters:
+      - {$ref: '#/components/parameters/DispositivoId'}
+    get:
+      tags: [Administração]
+      operationId: consultarDispositivo
+      x-story: BE-006
+      summary: Consultar dispositivo derivando a empresa pelo vínculo persistido
+      responses:
+        '200':
+          description: Cadastro sem credenciais
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Dispositivo'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/admin/dispositivos/{dispositivo_id}/configuracoes:
+    parameters:
+      - {$ref: '#/components/parameters/DispositivoId'}
+    post:
+      tags: [Administração]
+      operationId: publicarConfiguracao
+      x-story: BE-008
+      summary: Publicar configuração versionada na origem autorizada
+      description: >-
+        base_version null somente na primeira publicação, depois igual à versão
+        atual. Servidor gera nova versão; publica com autor/instante no mesmo
+        commit. Mesclar perfil e valores anteriores antes de validar a configuração
+        efetiva. Para RTSP ativo exigir URL com host; omitir chave não apaga cache.
+        Não publicar quadra/bucket/DEVICE_ID como settings. Sem alteração de eventos antigos.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ConfigPublish'}
+      responses:
+        '201':
+          description: Publicação persistida; conteúdo sensível restrito à origem autorizada
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ConfigPublication'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/dispositivos/{dispositivo_id}/config:
+    parameters:
+      - {$ref: '#/components/parameters/DispositivoId'}
+    get:
+      tags: [Gateway]
+      operationId: consultarConfiguracaoV1
+      x-story: BE-008
+      security:
+        - DeviceToken: []
+      summary: Entregar configuração v1 para o próprio dispositivo
+      description: >-
+        Token autentica o dispositivo do caminho. Origem inativa retorna 403,
+        inclusive se um pai estiver inativo; token inválido/revogado retorna 401.
+        Sem publicação válida retorna 503. Cliente persiste inativação por 401/403.
+        Resposta 200 tem somente version/active/settings, active true, sem metadados administrativos.
+      responses:
+        '200':
+          description: Envelope exato aceito pelo gateway v1
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GatewayConfig'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/replays:
+    post:
+      tags: [Gateway]
+      operationId: registrarReplayV1
+      x-story: BE-011
+      security:
+        - DeviceToken: []
+      summary: Confirmar replay somente após commit durável
+      description: >-
+        Idempotency-Key igual a evento_id. Autenticar e autorizar origem antes
+        de responder, inclusive reenvio. Registro existente idêntico retorna 200
+        sem exigir objeto já purgado; divergente retorna 409. Comparar timestamp
+        pelo instante. Evento novo exige objeto autorizado e SHA-256 dos bytes,
+        timestamp no máximo 300 s futuro e política snapshot da primeira ingestão.
+        Vencido é registrado/confirmado, sem publicação nem rejuvenescimento.
+        Corridas convergem pela unicidade; objeto ausente é 503 retentável, nunca 404 terminal.
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: {$ref: '#/components/schemas/EventoId'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ReplayCreate'}
+      responses:
+        '201':
+          description: Primeiro registro durável; inclui chegada vencida
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReplayAck'}
+        '200':
+          description: Mesmo evento e conteúdo imutável; não recria prazo/objeto
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReplayAck'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+components:
+  securitySchemes:
+    AdminBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: RS256; sessão, usuário e vínculo ativos; validade absoluta de 60 minutos.
+    DeviceToken:
+      type: apiKey
+      in: header
+      name: X-Device-Token
+      description: Credencial vinculada ao dispositivo, não à identidade administrativa.
+  parameters:
+    EmpresaId:
+      name: empresa_id
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/OriginId'}
+    QuadraId:
+      name: quadra_id
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/OriginId'}
+    DispositivoId:
+      name: dispositivo_id
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/DeviceId'}
+    Page:
+      name: page
+      in: query
+      schema: {type: integer, minimum: 0, maximum: 2147483647, default: 0}
+    Size:
+      name: size
+      in: query
+      schema: {type: integer, minimum: 1, maximum: 100, default: 20}
+  headers:
+    RetryAfter:
+      description: Segundos até nova tentativa; sem mudança de identidade do evento
+      schema: {type: integer, minimum: 1}
+  responses:
+    BadRequest:
+      description: JSON/header/caminho malformado; INVALID_REQUEST
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    Unauthorized:
+      description: Credencial ausente/inválida, sessão expirada/revogada ou usuário inativo; UNAUTHENTICATED
+      headers:
+        WWW-Authenticate:
+          description: Bearer somente para a API administrativa; não tratar DeviceToken como Bearer
+          schema: {type: string}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    Forbidden:
+      description: Papel/vínculo/origem sem permissão; FORBIDDEN ou ORIGIN_INACTIVE
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    NotFound:
+      description: Recurso inexistente no escopo autorizado; RESOURCE_NOT_FOUND
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    Conflict:
+      description: Identidade/conteúdo/versão em conflito; IDENTITY_CONFLICT, CONTENT_CONFLICT ou CONFIG_VERSION_CONFLICT
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    Unprocessable:
+      description: Campo fora do domínio; VALIDATION_FAILED ou EVENT_IN_FUTURE
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    RateLimited:
+      description: Limite de requisições; RATE_LIMITED
+      headers:
+        Retry-After: {$ref: '#/components/headers/RetryAfter'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    Unavailable:
+      description: Dependência, objeto ou configuração indisponível; DEPENDENCY_UNAVAILABLE, OBJECT_NOT_READY ou CONFIGURATION_NOT_READY
+      headers:
+        Retry-After: {$ref: '#/components/headers/RetryAfter'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+  schemas:
+    OriginId:
+      type: string
+      minLength: 1
+      maxLength: 64
+      pattern: '^[A-Za-z0-9_-]+$'
+      description: ID opaco e estável; empresa/quadra gerados pelo servidor e provisionados no gateway.
+    DeviceId:
+      type: string
+      pattern: '^[A-Za-z0-9_-]{1,32}$'
+    EventoId:
+      type: string
+      pattern: '^[a-f0-9]{32}$'
+      description: UUID hex emitido pelo gateway atual, sem hifens; identidade global da ingestão.
+    Sha256:
+      type: string
+      pattern: '^[a-f0-9]{64}$'
+    Version:
+      type: string
+      minLength: 1
+      maxLength: 64
+    NonBlankName:
+      type: string
+      minLength: 1
+      maxLength: 120
+      pattern: '\S'
+    AdminLogin:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          minLength: 1
+          maxLength: 254
+          description: Validar email apos trim/lowercase; formato e dominio sao verificacoes semanticas adicionais.
+        password:
+          type: string
+          format: password
+          writeOnly: true
+          minLength: 1
+          maxLength: 72
+          description: Validar também 12–72 bytes UTF-8 e conteudo nao inteiramente branco, sem trim/truncamento da senha pelo BCrypt.
+    AdminSession:
+      type: object
+      additionalProperties: false
+      required: [access_token, token_type, expires_in]
+      properties:
+        access_token: {type: string, minLength: 1}
+        token_type: {type: string, const: Bearer}
+        expires_in: {type: integer, const: 3600}
+    AdminIdentity:
+      type: object
+      additionalProperties: false
+      required: [usuario_id, email, platform_admin, empresa_ids]
+      properties:
+        usuario_id: {type: string, format: uuid}
+        email: {type: string, format: email}
+        platform_admin: {type: boolean}
+        empresa_ids:
+          type: array
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/OriginId'}
+          description: Vínculos COMPANY_ADMIN ativos; lista não concede papel de plataforma.
+    RetentionDays:
+      type: integer
+      minimum: 1
+      maximum: 30
+      default: 2
+      description: D04 confirmada; cada dia corresponde a 24 horas.
+    EmpresaCreate:
+      type: object
+      additionalProperties: false
+      required: [nome, active]
+      properties:
+        nome: {$ref: '#/components/schemas/NonBlankName'}
+        active: {type: boolean}
+        retencao_dias: {$ref: '#/components/schemas/RetentionDays'}
+      examples:
+        - {nome: Arena Exemplo, active: true, retencao_dias: 2}
+    Empresa:
+      type: object
+      additionalProperties: false
+      required: [empresa_id, nome, active, retencao_dias]
+      properties:
+        empresa_id: {$ref: '#/components/schemas/OriginId'}
+        nome: {$ref: '#/components/schemas/NonBlankName'}
+        active: {type: boolean}
+        retencao_dias: {$ref: '#/components/schemas/RetentionDays'}
+    CaptureProfile:
+      type: object
+      additionalProperties: false
+      required: [REPLAY_BEFORE_SECONDS, REPLAY_AFTER_SECONDS, SEGMENT_DURATION_SECONDS, KEYFRAME_INTERVAL]
+      properties:
+        REPLAY_BEFORE_SECONDS: {type: number, minimum: 1, maximum: 600}
+        REPLAY_AFTER_SECONDS: {type: number, minimum: 0, maximum: 60}
+        SEGMENT_DURATION_SECONDS: {type: integer, minimum: 1, maximum: 120}
+        KEYFRAME_INTERVAL: {type: integer, minimum: 1, maximum: 600}
+    QuadraCreate:
+      type: object
+      additionalProperties: false
+      required: [nome, active, timezone, perfil_captura]
+      properties:
+        nome: {$ref: '#/components/schemas/NonBlankName'}
+        active: {type: boolean}
+        timezone:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: ZoneId IANA válido; validação semântica obrigatória, sem fallback do servidor.
+        perfil_captura: {$ref: '#/components/schemas/CaptureProfile'}
+      examples:
+        - nome: Quadra Exemplo
+          active: true
+          timezone: America/Sao_Paulo
+          perfil_captura: {REPLAY_BEFORE_SECONDS: 120, REPLAY_AFTER_SECONDS: 0, SEGMENT_DURATION_SECONDS: 60, KEYFRAME_INTERVAL: 30}
+    Quadra:
+      type: object
+      additionalProperties: false
+      required: [quadra_id, empresa_id, nome, active, timezone, perfil_captura]
+      properties:
+        quadra_id: {$ref: '#/components/schemas/OriginId'}
+        empresa_id: {$ref: '#/components/schemas/OriginId'}
+        nome: {$ref: '#/components/schemas/NonBlankName'}
+        active: {type: boolean}
+        timezone: {type: string, minLength: 1, maxLength: 64}
+        perfil_captura: {$ref: '#/components/schemas/CaptureProfile'}
+    Bucket:
+      type: string
+      minLength: 3
+      maxLength: 63
+      description: Nome de bucket privado previamente permitido pela plataforma; nunca URL/ARN recebido arbitrariamente.
+      pattern: '^[a-z0-9][a-z0-9.-]+[a-z0-9]$'
+    DispositivoCreate:
+      type: object
+      additionalProperties: false
+      required: [dispositivo_id, active, bucket]
+      properties:
+        dispositivo_id: {$ref: '#/components/schemas/DeviceId'}
+        active: {type: boolean}
+        bucket: {$ref: '#/components/schemas/Bucket'}
+    Dispositivo:
+      type: object
+      additionalProperties: false
+      required: [dispositivo_id, quadra_id, empresa_id, active, bucket]
+      properties:
+        dispositivo_id: {$ref: '#/components/schemas/DeviceId'}
+        quadra_id: {$ref: '#/components/schemas/OriginId'}
+        empresa_id: {$ref: '#/components/schemas/OriginId'}
+        active: {type: boolean}
+        bucket: {$ref: '#/components/schemas/Bucket'}
+    DispositivoIssued:
+      type: object
+      additionalProperties: false
+      required: [dispositivo, device_token]
+      properties:
+        dispositivo: {$ref: '#/components/schemas/Dispositivo'}
+        device_token:
+          type: string
+          pattern: '^[A-Za-z0-9_-]{43}$'
+          description: Segredo exibido uma vez; não tem exemplo nem aparece no schema de consulta.
+    ConfigSettings:
+      type: object
+      additionalProperties: false
+      description: >-
+        Allowlist do validador real gateway_captura/src/remote_config.py.
+        Inteiros exigem token JSON inteiro (não 1.0, booleano ou string); JSON
+        Schema sozinho não distingue 1 de 1.0. URL exige host e esquema RTSP real
+        por validação semântica adicional. Omitir chave não a remove do cache v1.
+      properties:
+        REPLAY_BEFORE_SECONDS: {type: number, minimum: 1, maximum: 600}
+        REPLAY_AFTER_SECONDS: {type: number, minimum: 0, maximum: 60}
+        SEGMENT_DURATION_SECONDS: {type: integer, minimum: 1, maximum: 120}
+        KEYFRAME_INTERVAL: {type: integer, minimum: 1, maximum: 600}
+        CAMERA_TIMEOUT_SECONDS: {type: number, minimum: 1, maximum: 60}
+        CAMERA_LATENCY_SECONDS: {type: number, minimum: 0, maximum: 60}
+        MAX_PENDING_EVENTS: {type: integer, minimum: 1, maximum: 1000}
+        MIN_FREE_BYTES: {type: number, minimum: 1048576, maximum: 1099511627776}
+        BUFFER_QUOTA_BYTES: {type: number, minimum: 1048576, maximum: 10995116277760}
+        CLIPS_QUOTA_BYTES: {type: number, minimum: 1048576, maximum: 10995116277760}
+        CAMERA_SOURCE: {type: string, enum: [rtsp, dshow]}
+        CAMERA_RTSP_URL: {type: string, maxLength: 2048, pattern: '^rtsps?://[^/\s]+'}
+        CAMERA_RTSP_TRANSPORT: {type: string, enum: [tcp, udp]}
+        CAMERA_DEVICE_NAME: {type: string, minLength: 1, maxLength: 128}
+    ConfigPublish:
+      type: object
+      additionalProperties: false
+      required: [base_version, settings]
+      properties:
+        base_version:
+          anyOf:
+            - {$ref: '#/components/schemas/Version'}
+            - {type: 'null'}
+        settings:
+          $ref: '#/components/schemas/ConfigSettings'
+          minProperties: 1
+    ConfigPublication:
+      type: object
+      additionalProperties: false
+      required: [dispositivo_id, version, settings, published_by, published_at]
+      properties:
+        dispositivo_id: {$ref: '#/components/schemas/DeviceId'}
+        version: {$ref: '#/components/schemas/Version'}
+        settings: {$ref: '#/components/schemas/ConfigSettings'}
+        published_by: {type: string, format: uuid}
+        published_at: {type: string, format: date-time}
+    GatewayConfig:
+      type: object
+      additionalProperties: false
+      required: [version, active, settings]
+      properties:
+        version: {$ref: '#/components/schemas/Version'}
+        active: {type: boolean}
+        settings: {$ref: '#/components/schemas/ConfigSettings'}
+      examples:
+        - version: quadra-001-v1
+          active: true
+          settings:
+            CAMERA_SOURCE: rtsp
+            CAMERA_RTSP_URL: rtsp://192.0.2.10/stream-confirmado
+            CAMERA_RTSP_TRANSPORT: tcp
+            SEGMENT_DURATION_SECONDS: 60
+            KEYFRAME_INTERVAL: 30
+            REPLAY_BEFORE_SECONDS: 120
+            REPLAY_AFTER_SECONDS: 0
+    ReplayObject:
+      type: object
+      additionalProperties: false
+      required: [bucket, key, sha256]
+      properties:
+        bucket: {$ref: '#/components/schemas/Bucket'}
+        key:
+          type: string
+          pattern: '^replays/[A-Za-z0-9_-]{1,32}/[a-f0-9]{32}\.mp4$'
+          description: Conferir igualdade exata com dispositivo_id/evento_id e bucket provisionado antes de acessar storage.
+        sha256: {$ref: '#/components/schemas/Sha256'}
+    ReplayCreate:
+      type: object
+      additionalProperties: false
+      required: [contrato_versao, evento_id, dispositivo_id, quadra_id, timestamp, objeto]
+      properties:
+        contrato_versao: {type: integer, const: 1}
+        evento_id: {$ref: '#/components/schemas/EventoId'}
+        dispositivo_id: {$ref: '#/components/schemas/DeviceId'}
+        quadra_id: {$ref: '#/components/schemas/OriginId'}
+        timestamp: {type: string, format: date-time, pattern: '(Z|[+-][0-9]{2}:[0-9]{2})$'}
+        objeto: {$ref: '#/components/schemas/ReplayObject'}
+      examples:
+        - contrato_versao: 1
+          evento_id: d70fd979d77d4e33a587f01bb05a58c5
+          dispositivo_id: mega01
+          quadra_id: quadra_001
+          timestamp: '2026-10-15T15:47:57+00:00'
+          objeto:
+            bucket: bucket-privado
+            key: replays/mega01/d70fd979d77d4e33a587f01bb05a58c5.mp4
+            sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    ReplayAck:
+      type: object
+      additionalProperties: false
+      required: [evento_id, sha256]
+      properties:
+        evento_id: {$ref: '#/components/schemas/EventoId'}
+        sha256: {$ref: '#/components/schemas/Sha256'}
+      examples:
+        - evento_id: d70fd979d77d4e33a587f01bb05a58c5
+          sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    EmpresaPage:
+      type: object
+      additionalProperties: false
+      required: [items, page, size, total]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Empresa'}}
+        page: {type: integer, minimum: 0}
+        size: {type: integer, minimum: 1, maximum: 100}
+        total: {type: integer, minimum: 0}
+    QuadraPage:
+      type: object
+      additionalProperties: false
+      required: [items, page, size, total]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Quadra'}}
+        page: {type: integer, minimum: 0}
+        size: {type: integer, minimum: 1, maximum: 100}
+        total: {type: integer, minimum: 0}
+    DispositivoPage:
+      type: object
+      additionalProperties: false
+      required: [items, page, size, total]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Dispositivo'}}
+        page: {type: integer, minimum: 0}
+        size: {type: integer, minimum: 1, maximum: 100}
+        total: {type: integer, minimum: 0}
+    ApiError:
+      type: object
+      additionalProperties: false
+      required: [code, message, correlation_id]
+      properties:
+        code:
+          type: string
+          enum: [INVALID_REQUEST, UNAUTHENTICATED, FORBIDDEN, ORIGIN_INACTIVE, RESOURCE_NOT_FOUND, IDENTITY_CONFLICT, CONTENT_CONFLICT, CONFIG_VERSION_CONFLICT, VALIDATION_FAILED, EVENT_IN_FUTURE, RATE_LIMITED, DEPENDENCY_UNAVAILABLE, OBJECT_NOT_READY, CONFIGURATION_NOT_READY]
+        message: {type: string, minLength: 1, maxLength: 240}
+        correlation_id: {type: string, format: uuid}
+        violations:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [field, code]
+            properties:
+              field: {type: string, minLength: 1, maxLength: 120}
+              code: {type: string, enum: [REQUIRED, INVALID_FORMAT, OUT_OF_RANGE, UNKNOWN_FIELD, MISMATCH]}
+      examples:
+        - code: VALIDATION_FAILED
+          message: Campos fora do dominio permitido.
+          correlation_id: 8cc5c2cc-a4b6-4a5e-8a45-574499b2e247
+          violations: [{field: retencao_dias, code: OUT_OF_RANGE}]

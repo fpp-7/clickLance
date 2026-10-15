@@ -2,17 +2,17 @@
 
 Atualizado em 15/10/2026. Fonte única do inventário de RN/RF/RNF do backend; ainda em refinamento.
 
-**Confirmado:** piloto gratuito com biblioteca; pagamentos depois. **Compatibilidade:** ingestão e configuração seguem o [contrato cloud v1](contrato_cloud_gateway_v1.md). **Proposto:** os demais ajustes abaixo aguardam fechamento conforme a entrega correspondente. Não há backend implementado ou homologado nesta revisão.
+**Confirmado:** piloto gratuito com biblioteca; pagamentos depois. **Compatibilidade:** ingestão e configuração seguem o [contrato cloud v1](contrato_cloud_gateway_v1.md). O fechamento BE-002 na [visão do backend](overview_backend_refinamento.md) define D04–D06, D08, D10 e os recortes administrativo de D12 e temporal de D13; os demais ajustes continuam propostos. BE-001 entrega a fundação técnica; não há funcionalidades cloud homologadas.
 
 A [visão do backend](overview_backend_refinamento.md) reúne escopo, decisões pendentes e ordem de trabalho. Este catálogo contém os requisitos e seus critérios, sem repetir payloads de API, DDL ou sprints. O inventário tem **24 RF, 38 RN e 12 RNF**, incluindo os complementos propostos.
 
 ## 1. RF existentes, refinados
 
-RF-MVP-01–14 preservam os IDs originais. US-01–12 identificam as histórias de origem, agora consolidadas nas linhas abaixo; não há um segundo contrato de histórias ou endpoints. O refinamento e os aceites abaixo são propostas; a compatibilidade de ingestão/configuração v1 é exigida pelo cliente existente.
+RF-MVP-01–14 preservam os IDs originais. US-01–12 identificam as histórias de origem, agora consolidadas nas linhas abaixo; não há um segundo contrato de histórias ou endpoints. O estado das decisões está na visão do backend. Schemas e erros executáveis do primeiro recorte estão em [OpenAPI](../backend/openapi.yaml); a compatibilidade v1 é exigida pelo cliente existente.
 
 | ID / história | Função já mapeada | Refinamento | Aceite essencial |
 |---|---|---|---|
-| RF-MVP-01 / US-01 | Cadastrar empresa. | Exigir admin da plataforma; retenção validada; fuso padrão e status explícitos. “2 a 7” hoje é exemplo, não limite aprovado. | Visitante e admin de outra empresa não criam empresas; valores fora da política são recusados. |
+| RF-MVP-01 / US-01 | Cadastrar empresa. | Admin da plataforma, retenção conforme D04 confirmada e status explícito; fuso obrigatório na quadra, sem default implícito do servidor. | Visitante e admin de outra empresa não criam empresas; valores fora da política são recusados. |
 | RF-MVP-02 / US-02,06 | Cadastrar quadra. | Gerir/listar/editar/inativar com escopo da empresa; definir fuso e catálogo público. | Empresa A não altera quadra B; catálogo omite recursos sem visibilidade. |
 | RF-MVP-03 / US-03 | Cadastrar dispositivo e emitir token. | ID compatível com CL1 (1–32 caracteres permitidos); vínculo de origem controlado; rotação/revogação. | Token aparece somente na emissão; hash no banco; credencial de um dispositivo não autentica outro. |
 | RF-MVP-04 / US-04 | Sincronizar configuração. | Entregar envelope v1 exato e parâmetros aceitos no cliente; versões publicadas rastreáveis. | Gateway atual aceita resposta válida; chave desconhecida não é publicada; eventos antigos preservam contexto. |
@@ -31,12 +31,12 @@ RF-MVP-01–14 preservam os IDs originais. US-01–12 identificam as histórias 
 
 | ID | Regra atual | Refinamento proposto / situação |
 |---|---|---|
-| RN-MVP-01 | Empresa define dias de retenção. | Manter; definir default, mínimo/máximo e se dia significa 24h. Guardar política aplicada ao lance. |
+| RN-MVP-01 | Empresa define dias de retenção. | D04 confirmada em BE-002; limites/default/unidade em OpenAPI e na decisão. Guardar política aplicada ao lance. |
 | RN-MVP-02 | Quadra pertence a uma empresa. | Manter; não transferir histórico ao alterar cadastros. |
-| RN-MVP-03 | Dispositivo pertence a uma quadra. | Manter; propor alocação imutável no piloto. Mudança de instalação exige identidade nova ou alocação histórica. |
+| RN-MVP-03 | Dispositivo pertence a uma quadra. | D10 confirmada: vínculo imutável no piloto; mudança de quadra exige nova identidade, sem transferência do histórico. |
 | RN-MVP-04 | Identificador único de dispositivo. | Manter globalmente único e compatível com CL1: `[A-Za-z0-9_-]`, 1–32 caracteres. |
 | RN-MVP-05 | Token próprio no header. | Manter `X-Device-Token`; validar token e dispositivo em conjunto. |
-| RN-MVP-06 | Somente dispositivo ativo envia. | Ampliar para situação da empresa/quadra; separar credencial inválida (401) de bloqueio operacional (403), sujeito à política de inativação. |
+| RN-MVP-06 | Somente dispositivo ativo envia. | D08 confirmada: empresa/quadra/dispositivo inativo recusa configuração e ingestão, inclusive reenvio; credencial inválida 401, origem inativa 403. |
 | RN-MVP-07 | Armazenar apenas hash do token. | Manter; emissão/rotação revela segredo uma vez; logs e respostas de consulta não o contêm. |
 | RN-MVP-08 | Backend resolve quadra pelo dispositivo. | Manter; `quadra_id` do contrato v1 é uma afirmação a conferir, nunca autorização. |
 | RN-MVP-09 | Registrar instante original do clique. | Manter com offset obrigatório; separar `timestamp_evento` e `recebido_em`. Não trocar horário por chegada à API. |
@@ -45,8 +45,8 @@ RF-MVP-01–14 preservam os IDs originais. US-01–12 identificam as histórias 
 | RN-MVP-12 | Edge gera clipe e faz upload. | Manter responsabilidade. Retirar exigência de “sem re-encoding”: gateway atual pode recodificar para cumprir a janela. |
 | RN-MVP-13 | Cada acionamento válido gera um lance. | Precisar: cada evento de vídeo válido registrado gera no máximo um lance; aceite local não garante registro cloud imediato nem recuperação de vídeo inexistente. |
 | RN-MVP-14 | Mesmo dispositivo em cinco segundos = mesmo lance. | Substituir por identidade estável v1. Cooldown de cinco segundos permanece no aceite local e não é deduplicação cloud. |
-| RN-MVP-15 | Todo lance recebido nasce disponível. | Condicionar a objeto validado, origem ativa, política de acesso e prazo vigente. Envio já expirado precisa da decisão D05. |
-| RN-MVP-16 | Expiração = clique + dias da empresa. | Preservar como base existente; propor duração em múltiplos de 24h e snapshot na primeira ingestão. Alterações retroativas exigem operação explícita. |
+| RN-MVP-15 | Todo lance recebido nasce disponível. | D05 confirmada: chegada vencida é registrada/confirmada sem publicação; validar objeto e origem mesmo nesse caso. |
+| RN-MVP-16 | Expiração = clique + dias da empresa. | D04/D06 confirmadas: duração em múltiplos de 24h e snapshot na primeira ingestão durável; reenvio não recalcula prazo. |
 | RN-MVP-17 | Expirado deixa a vitrine. | Aplicar a grade, detalhe, player e download; não depender de atualização de status pelo cron. |
 | RN-MVP-18 | Expirado sem usuário é deletado do S3. | Manter objetivo; bloquear novos vínculos e registrar intenção antes de apagar; confirmar resultado remoto e considerar configuração de versões. |
 | RN-MVP-19 | Expirado salvo permanece acessível. | Manter biblioteca no piloto; conservação e cota pendentes. Regras de retirada/bloqueio podem suspender o acesso. |
@@ -77,9 +77,9 @@ RF-MVP-01–14 preservam os IDs originais. US-01–12 identificam as histórias 
 | ID | Regra de negócio proposta | RF relacionados |
 |---|---|---|
 | RN-MVP-24 | Toda ação administrativa exige papel e vínculo válido com a empresa; cadastro público não cria administrador. | 01–03,15,19,24 |
-| RN-MVP-25 | Credencial de dispositivo pode ser rotacionada/revogada; efeito sobre fila pendente e eventual sobreposição de chaves deve ser explícito. | 03–05,24 |
-| RN-MVP-26 | Inativação de empresa/quadra/dispositivo bloqueia novas operações definidas na matriz; não implica automaticamente apagar histórico ou bibliotecas. | 01–06,10,13,24 |
-| RN-MVP-27 | Instantes usam offset obrigatório; filtros civis usam fuso IANA da quadra. Desvio futuro tem limite a definir; atraso offline não é erro de relógio por si só. | 05,08–10,23 |
+| RN-MVP-25 | D08 confirmada: rotação revoga credencial anterior imediatamente; fila permanece para intervenção, sem drenagem automática/sobreposição. | 03–05,24 |
+| RN-MVP-26 | D08 confirmada: origem inativa recusa configuração/ingestão, inclusive reenvios; não apaga histórico ou bibliotecas. Demais superfícies dependem de suas histórias. | 01–06,10,13,24 |
+| RN-MVP-27 | D13 confirmada para ingestão: offset obrigatório, tolerância futura fixada na decisão; atraso offline segue D05. Filtros civis usam fuso IANA da quadra. | 05,08–10,23 |
 | RN-MVP-28 | Envio tardio preserva clique e identidade; disponibilidade e confirmação seguem política D05, sem rejuvenescimento silencioso do conteúdo. | 05,07,08,14 |
 | RN-MVP-29 | Um dispositivo só referencia objetos no bucket autorizado e em `replays/{dispositivo_id}/{evento_id}.mp4`; `quadra_id` deve coincidir com origem cadastrada. | 05,06,08,14 |
 | RN-MVP-30 | `evento_id` é único e seu conteúdo imutável. Repetição idêntica retorna confirmação original; divergência não sobrescreve registro nem objeto. Um objeto pertence a um único lance. | 05,07,08,22 |
@@ -92,14 +92,14 @@ RF-MVP-01–14 preservam os IDs originais. US-01–12 identificam as histórias 
 | RN-MVP-37 | Slots são `[início,fim)` no fuso da quadra. Sem horas, retornar dia local paginado; com apenas uma hora ou faixa inválida, rejeitar. Último slot termina à meia-noite seguinte. | 09,23 |
 | RN-MVP-38 | Configuração publicada tem versão, autor e momento; mudanças não alteram eventos já aceitos. Remover uma chave do payload não significa apagá-la do cache v1. | 04,19,24 |
 
-RF relacionados nesta tabela usam o prefixo `RF-MVP-` omitido apenas para legibilidade. Esses novos itens completam o levantamento; ainda precisam de aprovação do escopo e detalhamento em histórias.
+RF relacionados nesta tabela usam o prefixo `RF-MVP-` omitido apenas para legibilidade. As decisões ainda abertas permanecem pendentes conforme a visão do backend; BE-002 define somente o primeiro recorte.
 
 ## 4. Requisitos não funcionais
 
 | ID | Situação / refinamento | Evidência futura necessária |
 |---|---|---|
 | RNF-MVP-01 | Existente: autenticação do dispositivo com hash. Ampliar para proteção do transporte, não exposição de segredo e rotação. | Credenciais incorretas/cruzadas/revogadas não autorizam ingestão; logs sem segredo. |
-| RNF-MVP-02 | Existente: senha BCrypt e JWT. Completar duração, recuperação, revogação e conta inativa. | Sessão segue a política escolhida; senha/token de recuperação protegidos. |
+| RNF-MVP-02 | BCrypt/JWT; recorte administrativo de D12 definido em BE-002. Políticas de jogador/recuperação continuam pendentes. | Sessão segue a política escolhida; senha/token de recuperação protegidos. |
 | RNF-MVP-03 | Existente: isolamento multiempresa. Aplicar autorização no serviço e coerência no banco; identidade global é distinta. | Testes negativos entre empresas em todos os recursos administrativos e de ingestão. |
 | RNF-MVP-04 | Existente: índices. Revisar índices para evento único, grade, biblioteca e trabalho pendente. | Planos/tempo de consulta com volume representativo, sem prometer desempenho só pela presença do índice. |
 | RNF-MVP-05 | Existente: idempotência resiliente. Exigir unicidade, confirmação durável e comportamento sob concorrência. | Commit com resposta perdida, reenvios concorrentes e divergência. |
