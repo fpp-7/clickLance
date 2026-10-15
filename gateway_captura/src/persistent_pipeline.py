@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import threading
+import time
 from pathlib import Path
 
 import boto3
@@ -75,9 +76,12 @@ class CloudGateway:
             'objeto': {'bucket': config['bucket'], 'key': event['object_key'], 'sha256': event['sha256']},
         }
         response = self.http.post(Config.API_URL, json=payload, timeout=(5, 15),
+                                  allow_redirects=False,
                                   headers={'X-Device-Token': Config.DEVICE_TOKEN,
                                            'Idempotency-Key': event['id']})
-        if response.status_code in (400, 401, 403, 404, 409, 422):
+        if 300 <= response.status_code < 400:
+            raise PermanentFailure('HTTP_REDIRECT')
+        if response.status_code in (400, 401, 403, 404, 409, 410, 422):
             raise PermanentFailure(f'HTTP_{response.status_code}')
         response.raise_for_status()
         data = response.json()
@@ -94,10 +98,18 @@ class PersistentPipeline:
         event = self.store.get(event_id)
         state = event['state']
         logger.info('evento_id=%s estado=%s tentativa=%d', event_id, state, event['attempts'] + 1)
+        started = time.monotonic()
+        try:
+            self._perform(event)
+        finally:
+            logger.info('evento_id=%s estado=%s duracao_s=%.3f', event_id, state, time.monotonic() - started)
+
+    def _perform(self, event):
+        event_id, state = event['id'], event['state']
         if state in ('ACEITO', 'AGUARDANDO_VIDEO'):
             self.store.advance(event_id, 'AGUARDANDO_VIDEO') if state == 'ACEITO' else None
             request, records = self.store.dvr.wait_replay(event_id)
-            destination = Path(self.renderer.output_dir) / f'lance_{event_id}.mp4'
+            destination = Path(self.renderer.output_dir).resolve() / f'lance_{event_id}.mp4'
             temporary = destination.with_suffix('.working.mp4')
             self.renderer._render_replay(request, records, str(temporary))
             with temporary.open('rb+') as stream:

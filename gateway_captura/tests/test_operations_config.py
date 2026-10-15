@@ -13,6 +13,7 @@ import requests
 from src.config import Config
 from src.logger import SanitizingFormatter
 from src.operations import InstanceLock, health_report
+from src.operations import enforce_capture_capacity
 from src.remote_config import RemoteConfig
 from test_durable_pipeline import DurableFixture
 
@@ -83,6 +84,18 @@ class OperationsTests(DurableFixture, unittest.TestCase):
         self.assertGreaterEqual(report['free_bytes'], 0)
         self.assertNotIn(Config.DEVICE_TOKEN, json.dumps(report))
 
+    def test_insufficient_disk_pauses_capture_and_recovers_after_freeing_space(self):
+        with patch('src.operations.shutil.disk_usage', return_value=Mock(free=0)), \
+                patch('src.operations.tree_bytes', return_value=0), \
+                patch.object(self.store.catalog, 'reclaim', return_value=0):
+            enforce_capture_capacity(self.store)
+        self.assertTrue(self.dvr.capacity_paused)
+        self.assertFalse(self.dvr._running.is_set())
+        with patch('src.operations.shutil.disk_usage', return_value=Mock(free=10**12)), \
+                patch('src.operations.tree_bytes', return_value=0):
+            enforce_capture_capacity(self.store)
+        self.assertFalse(self.dvr.capacity_paused)
+
     def test_retry_returns_to_last_failed_stage(self):
         event_id = self.accepted()
         self.store.fail(event_id, ValueError('TEST_FAILURE'), permanent=True)
@@ -90,6 +103,21 @@ class OperationsTests(DurableFixture, unittest.TestCase):
         self.store.retry(event_id)
         self.assertEqual(self.store.get(event_id)['state'], 'ACEITO')
         self.assertEqual(self.store.get(event_id)['attempts'], 0)
+
+    @unittest.skipUnless(os.name == 'nt', 'Runtime Windows')
+    def test_essential_thread_failure_returns_error_for_task_restart(self):
+        from src.runtime import run
+        from contextlib import ExitStack
+        with ExitStack() as contexts:
+            for name in ('supervise_capture', 'maintenance'):
+                contexts.enter_context(patch('src.runtime.' + name, return_value=None))
+            contexts.enter_context(patch('src.runtime.PersistentPipeline.run', return_value=None))
+            contexts.enter_context(patch('src.runtime.SerialListener.start_listening', return_value=None))
+            contexts.enter_context(patch('src.runtime.RemoteConfig.initialize', return_value=False))
+            contexts.enter_context(patch('src.runtime.signal.signal'))
+            contexts.enter_context(patch.object(Config, 'SERIAL_PORT', 'TEST-PORT-' + self.root.name))
+            with self.assertRaisesRegex(RuntimeError, 'GATEWAY_ROUTINE_FAILED'):
+                run()
 
     def test_log_formatter_redacts_traceback_url_and_token(self):
         try:
@@ -108,6 +136,8 @@ import os, sys, time
 from src.config import Config
 Config.SEGMENTS_DIR, Config.OUTPUT_DIR = sys.argv[1:3]
 Config.MIN_FREE_BYTES = 0
+Config.S3_BUCKET_NAME = 'test-bucket'
+Config.DEVICE_TOKEN = 'test-token'
 Config.REPLAY_BEFORE_SECONDS = 2
 from src.dvr_manager import DVRManager
 from src.event_store import EventStore

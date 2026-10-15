@@ -40,6 +40,8 @@ class DVRManager:
         self._last_content_pts = -1.0
         self._last_progress_mono = 0.0
         self.stderr_tail: list[str] = []
+        self.capacity_paused = False
+        self.last_start_error = None
 
     # ------------------------------------------------------------------
     # GRAVAÇÃO
@@ -54,6 +56,7 @@ class DVRManager:
             self._last_content_pts = -1.0
             self.session_id = None
         self._running.set()
+        self.last_start_error = None
 
         try:
             # Validar sem gravar URL ou credenciais no catálogo/log.
@@ -83,9 +86,11 @@ class DVRManager:
             if self._running.is_set():
                 logger.error("DVR: FFmpeg encerrou inesperadamente!")
         except FileNotFoundError:
+            self.last_start_error = 'FFMPEG_NOT_FOUND'
             logger.error("DVR: FFmpeg não encontrado no PATH do sistema.")
         except Exception as exc:
-            logger.error("DVR: Falha na captura (%s); confira configuração e fonte.", type(exc).__name__)
+            self.last_start_error = 'INVALID_INPUT_CONFIGURATION' if isinstance(exc, ValueError) else type(exc).__name__
+            logger.error("DVR: Falha na captura (%s); confira configuração e fonte.", self.last_start_error)
         finally:
             self.stop_recording()
             if self.session_id:
@@ -194,10 +199,12 @@ class DVRManager:
             # Entrada: câmera via DirectShow (Windows)
             *(input_args if input_args is not None else self.build_input_args()),
             '-map', '0:v:0', '-an',
+            '-fps_mode', 'passthrough',
             # Codec de saída
             "-c:v", "libx264",
             "-preset", "ultrafast",   # Mínimo uso de CPU
             "-tune", "zerolatency",   # Sem buffer de latência
+            '-maxrate', str(Config.CAPACITY_BITRATE), '-bufsize', str(Config.CAPACITY_BITRATE * 2),
             "-g", str(Config.KEYFRAME_INTERVAL),
             "-sc_threshold", "0",     # Desabilita detecção de cena que atrapalha o -g
             # Segmentação

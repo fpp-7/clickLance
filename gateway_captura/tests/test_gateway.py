@@ -58,6 +58,7 @@ class GatewayFixture:
             f'seg_{i:04d}.mp4,{2*i},{2*i+2}\n' for i in range(count)), encoding='utf-8')
         probe = SimpleNamespace(stdout=json.dumps({
             'format': {'duration': '2'}, 'streams': [{'codec_type': 'video'}],
+            'packets': [{'pts_time': str(i/30), 'duration_time': str(1/30)} for i in range(60)],
         }))
         with patch('src.segment_catalog.subprocess.run', return_value=probe):
             self.dvr.catalog.reconcile(self.dvr.session_id)

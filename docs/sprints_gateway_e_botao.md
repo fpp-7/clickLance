@@ -1,8 +1,22 @@
 # ClickLance — Sprints de evolução do gateway e do botão
 
-Data: 15 de outubro de 2026. Status: Sprint 1 verificada automaticamente, com bancada pendente; Sprint 2 iniciada.
+Data: 15 de outubro de 2026. Status: implementação das Sprints 1–5 avançada e verificada automaticamente; Sprint 6 com homologação física/cloud pendente.
 
-### Andamento da Sprint 2
+### Entrega atual — 15/10/2026
+
+- GW-06: evento, resultado serial e reserva no mesmo commit SQLite; unicidade serial e reenvio estável após reinício.
+- BT-01/BT-02: firmware CL1 sem `delay`, debounce/soltura, buffers limitados, timeout/repetição e LCD confirmado somente por ACK correspondente. Compilado para Mega 2560; bancada ainda pendente.
+- GW-07/GW-08: pipeline persistente, backoff/intervenção, upload condicional com checksum, API autenticada por token e identidade estável. Testado com simuladores; backend/AWS reais pendentes.
+- GW-09: configuração autenticada, validação, cache offline, inativação persistente e troca de sessão ao mudar captura.
+- GW-10/GW-11/GW-12: supervisão testada com RTSP TCP local, controle de disco/fila, mutexes Windows, saúde local, scripts de startup e procedimentos de backup/restauração/rollback. Tarefa/boot reais não foram exercitados.
+- QA: 67 testes aprovados, sem ignorados/falhas esperadas na execução completa; janela de 120 s, crash real do SQLite, perda de ACK e retomada demonstrados. Não equivale à homologação do piloto.
+
+Consulte o [relatório de entrega e homologação](homologacao_2026-10-15.md),
+o [manual Windows](operacao_gateway_windows.md) e o [contrato cloud v1](contrato_cloud_gateway_v1.md).
+O critério comum de conclusão abaixo continua válido: equipamentos reais,
+integração de homologação e jornada do piloto ainda impedem marcar todas as sprints como concluídas.
+
+### Registro anterior da Sprint 2
 
 - Entrada RTSP configurável implementada (TCP/UDP e timeout), sem URL ou credenciais nos logs do gateway. Equipamento informado: Intelbras VIP, modelo exato ainda pendente.
 - GW-04 iniciado: diretórios únicos por sessão, catálogo SQLite, lista CSV de fechamento do FFmpeg, validação de stream/duração, identificação de lacunas e reconciliação na inicialização. Arquivos em escrita e órfãos ficam separados dos fechados.
@@ -10,7 +24,7 @@ Data: 15 de outubro de 2026. Status: Sprint 1 verificada automaticamente, com ba
 - Evidência atual: 35 testes aprovados, sem falhas esperadas ou testes ignorados. Inclui conteúdo por pixels nas bordas e no clique, fila atrasada, reservas persistidas, timeout e falhas de geração/upload/API. [Detalhes e limites](evidencias_sprint_2.md).
 - Pendentes: stream RTSP simulado/real, medição da latência da câmera e validação da âncora contra a cena, custo da janela completa no equipamento alvo. Sprint 2 ainda não homologada. Recuperação de eventos e confirmação serial pertencem à Sprint 3.
 
-### Andamento da Sprint 1
+### Registro anterior da Sprint 1
 
 - GW-01/GW-02: [contratos iniciais registrados](contratos_gateway_botao.md), sujeitos à validação em bancada; protocolo ainda não implementado.
 - GW-03: testes persistidos, serial simulada, substitutos de storage/API e vídeo sintético com relógio/frame/marcadores implementados. Diagnóstico compartilha captura/concatenação com produção e valida duração e decodificação. [Evidências e comandos](evidencias_sprint_1.md).

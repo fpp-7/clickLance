@@ -1,0 +1,19 @@
+{
+  "date": "2026-10-15",
+  "python": "3.13.15",
+  "tests": 67,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "expected_failures": 0,
+  "seconds": 36.557,
+  "ok": true,
+  "tools": {
+    "ffmpeg": "9.0.1 Essentials",
+    "boto3": "1.43.114",
+    "mediamtx": "1.21.2",
+    "arduino_cli": "1.5.1",
+    "arduino_avr": "1.8.8",
+    "liquidcrystal_i2c": "1.1.2"
+  }
+}

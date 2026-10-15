@@ -11,6 +11,7 @@ from urllib.parse import urlsplit
 
 from .config import Config
 from .logger import logger
+from .event_store import tree_bytes
 
 
 class InstanceLock:
@@ -40,18 +41,27 @@ class InstanceLock:
 
 
 def health_report(store):
+    reason = store.health_reason()
     with store.lock:
         pending = store.db.execute("SELECT COUNT(*),MIN(created) FROM events WHERE state!='REGISTRO_CONFIRMADO'").fetchone()
         last_cloud = store.db.execute("SELECT MAX(completed) FROM events WHERE state='REGISTRO_CONFIRMADO'").fetchone()[0]
-        last_segment = store.db.execute("SELECT session_id,end FROM segments WHERE status='CLOSED' ORDER BY rowid DESC LIMIT 1").fetchone()
+        last_segment = store.db.execute('''SELECT s.session_id,s.end FROM segments s JOIN sessions c
+            ON c.id=s.session_id WHERE s.status='CLOSED'
+            ORDER BY (s.session_id=?) DESC,c.started_utc DESC,s.end DESC LIMIT 1''',
+                                        (store.dvr.session_id or '',)).fetchone()
     return {
-        'version': '0.3.0', 'generated_utc': time.time(), 'state': store.health(),
+        'version': '0.3.0', 'generated_utc': time.time(),
+        'state': 'READY' if reason is None else ('WARMING_UP' if reason == 'WARMING_UP' else 'UNAVAILABLE'),
+        'reason': reason,
         'pending': pending[0], 'oldest_pending_age_seconds': time.time() - pending[1] if pending[1] else 0,
         'free_bytes': shutil.disk_usage(store.catalog.root).free,
         'last_segment': dict(last_segment) if last_segment else None,
         'last_cloud_confirmation_utc': last_cloud,
         'capture_session': store.dvr.session_id,
         'last_capture_errors': list(store.dvr.stderr_tail),
+        'last_capture_start_error': store.dvr.last_start_error,
+        'capture_progress_age_seconds': (time.monotonic() - store.dvr._last_progress_mono
+                                         if store.dvr._content_anchor is not None else None),
     }
 
 
@@ -59,7 +69,7 @@ def supervise_capture(store, stop: threading.Event):
     dvr = store.dvr
     retry_delay = 2
     while not stop.is_set():
-        if not store.enabled:
+        if not store.enabled or dvr.capacity_paused:
             stop.wait(1)
             continue
         source = urlsplit(Config.CAMERA_RTSP_URL)
@@ -96,6 +106,7 @@ def maintenance(store, stop):
     while not stop.is_set():
         try:
             store.dvr._cleanup_old_segments()
+            enforce_capture_capacity(store)
             report = health_report(store)
             destination = store.catalog.root / 'health.json'
             temporary = destination.with_suffix('.tmp')
@@ -111,3 +122,19 @@ def maintenance(store, stop):
         except (OSError, ValueError):
             logger.warning('Falha no diagnóstico/manutenção; será repetido.')
         stop.wait(5)
+
+
+def enforce_capture_capacity(store):
+    # Margem adicional para terminar um segmento e finalização do encoder.
+    segment_margin = int(Config.SEGMENT_DURATION_SECONDS * Config.CAPACITY_BITRATE / 8 * 2)
+    need = max(0, tree_bytes(store.catalog.root) + segment_margin - Config.BUFFER_QUOTA_BYTES,
+               Config.MIN_FREE_BYTES + segment_margin - shutil.disk_usage(store.catalog.root).free)
+    if need:
+        reclaimed = store.catalog.reclaim(
+            need, store.dvr.session_id,
+            Config.REPLAY_BEFORE_SECONDS + Config.REPLAY_AFTER_SECONDS + 2*Config.SEGMENT_DURATION_SECONDS)
+        store.dvr.capacity_paused = reclaimed < need
+        if store.dvr.capacity_paused:
+            store.dvr.stop_recording()
+    else:
+        store.dvr.capacity_paused = False

@@ -18,11 +18,15 @@ from .video_processor import VideoProcessor
 
 
 def run():
+    Config.validate_local()
     stop = threading.Event()
+    requested_shutdown = False
     with ExitStack() as locks:
         locks.enter_context(InstanceLock('base:' + str(Path(Config.SEGMENTS_DIR).resolve())))
         locks.enter_context(InstanceLock('serial:' + Config.SERIAL_PORT.upper()))
         dvr = DVRManager()
+        threads = []
+        locks.callback(lambda: dvr.catalog.close() if not any(t.is_alive() for t in threads) else None)
         store = EventStore(dvr)
         remote = RemoteConfig(store)
         remote.initialize()
@@ -49,6 +53,8 @@ def run():
         threads = [threading.Thread(name=name, target=target, args=args, daemon=True)
                    for name, target, args in targets]
         def shutdown(signum, frame):
+            nonlocal requested_shutdown
+            requested_shutdown = True
             stop.set()
         signal.signal(signal.SIGINT, shutdown)
         signal.signal(signal.SIGTERM, shutdown)
@@ -71,3 +77,5 @@ def run():
             if all(not thread.is_alive() for thread in threads):
                 dvr.catalog.close()
             logger.info('Gateway encerrado; eventos e etapas permanecem no SQLite.')
+        if not requested_shutdown:
+            raise RuntimeError('GATEWAY_ROUTINE_FAILED')

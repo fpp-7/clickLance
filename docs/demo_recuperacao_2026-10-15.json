@@ -1,0 +1,18 @@
+{
+  "ok": true,
+  "mode": "synthetic_video_and_simulated_cloud",
+  "event_id": "d70fd979d77d4e33a587f01bb05a58c5",
+  "state": "REGISTRO_CONFIRMADO",
+  "same_ack_after_restart": true,
+  "objects": 1,
+  "remote_events": 1,
+  "clip_removed_after_confirmation": true,
+  "attempts": [
+    {
+      "event_id": "d70fd979d77d4e33a587f01bb05a58c5",
+      "time": 1792079277.549151,
+      "stage": "CLIPE_PRONTO",
+      "error": "ConnectionError"
+    }
+  ]
+}

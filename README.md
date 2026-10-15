@@ -2,13 +2,20 @@
 
 > Sistema inteligente de captura contínua, recorte instantâneo e disponibilização de lances esportivos via acionamento físico na quadra.
 
+> **Entrega de desenvolvimento (15/10/2026):** gateway IP/RTSP com replay temporal,
+> SQLite, protocolo CL1, retomada de envios e operação Windows. 67 testes aprovados
+> e firmware Mega compilado. Homologação física/cloud e piloto permanecem pendentes.
+> Veja o [relatório atual](docs/homologacao_2026-10-15.md) e o
+> [guia do gateway](gateway_captura/README.md); as descrições históricas abaixo
+> não substituem esses documentos.
+
 ---
 
 ## 📌 Visão Geral do Produto
 
 O **ClickLance** é uma solução completa ponta a ponta desenvolvida para quadras esportivas (futsal e society). O produto permite que os jogadores marquem os melhores momentos de suas partidas pressionando um botão físico instalado diretamente na quadra — **sem precisar manusear smartphones durante o jogo**.
 
-As câmeras permanecem gravando continuamente em um buffer local. Ao acionar o botão, o sistema recupera a janela de tempo anterior ao lance, concatena os segmentos de vídeo sem perda de performance e envia o clipe para a nuvem. Posteriormente, os jogadores acessam a plataforma web da quadra, encontram suas partidas pelo horário e adquirem seus lances sob demanda.
+As câmeras permanecem gravando continuamente em um buffer local. Ao acionar o botão, o sistema reserva a janela original da jogada, gera e valida o clipe e retoma seu envio à nuvem após falhas. A plataforma web, planejada para os jogadores encontrarem partidas e adquirirem lances, faz parte do trabalho de produto/backend.
 
 > 📄 **Documento de referência:** Detalhes completos de concepção de negócio e requisitos constam em [`docs/documento_visao_produto_replay_quadras_v0_1.pdf`](docs/documento_visao_produto_replay_quadras_v0_1.pdf).
 

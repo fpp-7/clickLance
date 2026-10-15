@@ -2,6 +2,17 @@
 
 Este documento registra o que já foi implementado no módulo local (Edge) do ClickLance e quais são os próximos passos de todo o ecossistema.
 
+## Estado atual — 15/10/2026
+
+O gateway 0.3.0 implementa captura IP/RTSP, replay temporal, aceite SQLite com
+CL1, pipeline recuperável, cliente cloud autenticado, configuração offline,
+supervisão e operação Windows. A suíte completa tem 67 testes aprovados e o
+firmware compilou para Mega. Veja [entrega e pendências](homologacao_2026-10-15.md).
+
+Homologação com Intelbras/Mega reais, AWS/backend de homologação, boot no PC alvo
+e jornada do piloto ainda estão pendentes. Os registros abaixo são históricos;
+não representam o estado mais recente nem substituem o relatório de homologação.
+
 > **Execução da Sprint 1 (15/10/2026):** contratos iniciais e diagnóstico automatizado disponíveis. Foram executados 10 testes (6 aprovados, 4 falhas esperadas de defeitos conhecidos) e diagnóstico sintético com FFmpeg real. Consulte [evidências e limites](evidencias_sprint_1.md). Validação física e correções das próximas sprints permanecem pendentes.
 
 > **Planejamento de evolução (15/10/2026):** consulte [Sprints do gateway e do botão](sprints_gateway_e_botao.md). O plano trata as limitações apontadas no [parecer de consultoria](review_consultoria_2026-10-13.md); seus itens são propostos e não representam implementação concluída. As marcações históricas abaixo não substituem as evidências de validação exigidas nesse ciclo.
@@ -31,7 +42,7 @@ Este documento registra o que já foi implementado no módulo local (Edge) do Cl
 
 ### 1. Infraestrutura Cloud (AWS)
 - [ ] Criar uma conta/bucket na **AWS S3** dedicado aos lances do ClickLance.
-- [ ] Configurar as permissões (Bucket Policy) para que os vídeos fiquem acessíveis de forma pública (ou via CloudFront) para os jogadores assistirem.
+- [ ] Configurar bucket privado e autorização de reprodução pelo backend; não tornar objetos públicos.
 - [ ] Gerar as chaves de acesso (IAM `AWS_ACCESS_KEY_ID` e `AWS_SECRET_ACCESS_KEY`) e configurar no `.env` do PC local.
 
 ### 2. Backend Cloud (Java / Spring Boot)

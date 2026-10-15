@@ -7,7 +7,9 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import requests
+import boto3
 from botocore.exceptions import ClientError
+from botocore.stub import Stubber, ANY
 
 from src.config import Config
 from src.dvr_manager import DVRManager
@@ -78,6 +80,11 @@ class AcceptanceTests(DurableFixture, unittest.TestCase):
         self.assertFalse(reply['accepted'])
         self.assertEqual(reply['reason'], 'CAPACITY')
 
+    def test_unprovisioned_installation_never_accepts(self):
+        with patch.object(Config, 'DEVICE_TOKEN', ''):
+            reply = self.store.accept('mega01', 's', 1, '1', 100, time.time())
+        self.assertEqual(reply, {'accepted': False, 'reason': 'NOT_PROVISIONED'})
+
     def test_protocol_preserves_original_click_and_wraps_millis(self):
         protocol = SerialProtocol(self.store)
         welcome = protocol.handle('CL1|HELLO|mega01', mono=99, utc=1000)
@@ -111,6 +118,11 @@ class PipelineTests(DurableFixture, unittest.TestCase):
         event = self.store.get(event_id)
         self.assertEqual(event['state'], 'CLIPE_PRONTO')
         self.assertTrue(Path(event['clip']).exists())
+
+        with self.store.lock, self.store.db:
+            self.store.db.execute('UPDATE events SET attempts=8 WHERE id=?', (event_id,))
+        self.store.fail(event_id, requests.Timeout())
+        self.assertLessEqual(self.store.get(event_id)['next_attempt'] - time.time(), 900)
         with self.assertRaises(ValueError):
             self.dvr.catalog.reservation(event_id)
         pipeline = PersistentPipeline(EventStore(self.dvr), self.worker, cloud)
@@ -176,6 +188,25 @@ class PipelineTests(DurableFixture, unittest.TestCase):
         s3.head_object.return_value['Metadata']['sha256'] = 'divergent'
         with self.assertRaisesRegex(PermanentFailure, 'REMOTE_CONTENT_CONFLICT'):
             cloud.upload(event)
+
+    def test_conditional_upload_validates_against_installed_aws_sdk_model(self):
+        event_id = self.accepted()
+        pipeline, _ = self.pipeline()
+        pipeline.step(event_id)
+        event = self.store.get(event_id)
+        client = boto3.client('s3', aws_access_key_id='fake', aws_secret_access_key='fake', region_name='us-east-1')
+        try:
+            with Stubber(client) as stub:
+                stub.add_response('put_object', {}, {
+                    'Bucket': 'test-bucket', 'Key': event['object_key'], 'Body': ANY,
+                    'ContentType': 'video/mp4', 'Metadata': {'sha256': event['sha256']}, 'IfNoneMatch': '*',
+                })
+                stub.add_response('head_object', {'Metadata': {'sha256': event['sha256']}, 'ContentLength': 4},
+                                  {'Bucket': 'test-bucket', 'Key': event['object_key']})
+                CloudGateway(s3=client).upload(event)
+                stub.assert_no_pending_responses()
+        finally:
+            client.close()
 
 
 class FramerTests(unittest.TestCase):

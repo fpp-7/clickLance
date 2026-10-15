@@ -7,6 +7,7 @@ import subprocess
 import threading
 from pathlib import Path
 from uuid import uuid4
+from .config import Config
 
 
 class SegmentCatalog:
@@ -83,6 +84,8 @@ class SegmentCatalog:
                         continue
                     probe = subprocess.run(
                         ['ffprobe', '-v', 'error', '-show_streams', '-show_format',
+                         '-show_packets', '-select_streams', 'v:0', '-show_entries',
+                         'format=duration:stream=codec_type:packet=pts_time,duration_time',
                          '-of', 'json', str(path)],
                         capture_output=True, text=True, timeout=15, check=True,
                     )
@@ -94,7 +97,19 @@ class SegmentCatalog:
                         continue
                     if abs(duration - (end - start)) > 0.15:
                         continue
+                    packets = data.get('packets', [])
+                    pts = sorted(float(packet['pts_time']) for packet in packets)
+                    if not pts or not all(math.isfinite(n) for n in pts):
+                        raise ValueError('INVALID_FRAME_TIMESTAMPS')
+                    if any(b - a > Config.MAX_PACKET_GAP_SECONDS for a, b in zip(pts, pts[1:])):
+                        raise ValueError('FRAME_GAP')
+                    if any(float(packet.get('duration_time', '0')) > Config.MAX_PACKET_GAP_SECONDS
+                           for packet in packets):
+                        raise ValueError('FRAME_GAP')
                 except (OSError, ValueError, KeyError, subprocess.SubprocessError):
+                    with self.db:
+                        self.db.execute('INSERT OR REPLACE INTO segments VALUES (?, ?, NULL, NULL, NULL, ?)',
+                                        (session_id, str(path), 'INVALID'))
                     continue
                 with self.db:
                     self.db.execute('INSERT OR REPLACE INTO segments VALUES (?, ?, ?, ?, ?, ?)',
@@ -216,3 +231,30 @@ class SegmentCatalog:
                     continue
                 with self.db:
                     self.db.execute("UPDATE segments SET status='REMOVED' WHERE path=?", (str(path),))
+
+    def reclaim(self, bytes_needed, active_session, keep_seconds):
+        """Libera só fontes antigas sem reserva, preservando o buffer ativo recente."""
+        reclaimed = 0
+        with self.lock:
+            latest = self.db.execute("SELECT MAX(end) FROM segments WHERE session_id=? AND status='CLOSED'",
+                                     (active_session,)).fetchone()[0] or 0
+            candidates = self.db.execute('''SELECT s.path FROM segments s
+                WHERE s.status='CLOSED' AND (s.session_id!=? OR s.end < ?)
+                AND NOT EXISTS (SELECT 1 FROM replay_reservations r WHERE r.session_id=s.session_id
+                    AND r.start<s.end AND r.end>s.start)
+                ORDER BY s.rowid''', (active_session or '', latest - keep_seconds)).fetchall()
+            for row in candidates:
+                if reclaimed >= bytes_needed:
+                    break
+                path = Path(row['path'])
+                if not path.is_relative_to(self.root):
+                    continue
+                try:
+                    size = path.stat().st_size
+                    path.unlink()
+                except OSError:
+                    continue
+                with self.db:
+                    self.db.execute("UPDATE segments SET status='REMOVED' WHERE path=?", (str(path),))
+                reclaimed += size
+        return reclaimed

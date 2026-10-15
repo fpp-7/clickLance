@@ -99,6 +99,7 @@ class VideoProcessor(threading.Thread):
         options = ['-ss', f'{max(0, offset):.6f}', '-t', f'{duration:.6f}',
                    '-map', '0:v:0', '-an', '-c:v', 'libx264', '-preset', 'veryfast',
                    '-crf', '18', '-pix_fmt', 'yuv420p', '-movflags', '+faststart']
+        options.extend(['-maxrate', str(Config.CAPACITY_BITRATE), '-bufsize', str(Config.CAPACITY_BITRATE * 2)])
         self._concat([r['path'] for r in records], output_path, options)
         actual_duration = validate_video(Path(output_path))
         if abs(actual_duration - duration) > 0.05:

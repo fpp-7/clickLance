@@ -6,9 +6,12 @@ import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from unittest.mock import Mock
 
 from src.config import Config
 from src.diagnostics import validate_video
+from src.event_store import EventStore
+from src.persistent_pipeline import PersistentPipeline
 from test_gateway import GatewayFixture
 
 
@@ -77,6 +80,37 @@ class ReplayClockTests(GatewayFixture, unittest.TestCase):
 
 @unittest.skipUnless(shutil.which('ffmpeg') and shutil.which('ffprobe'), 'Requer FFmpeg e ffprobe')
 class ReplayContentTests(GatewayFixture, unittest.TestCase):
+    def test_full_120_second_window_through_durable_pipeline(self):
+        catalog = self.dvr.catalog
+        session = catalog.create_session(time.time(), 'synthetic')
+        self.dvr.session_id = session
+        directory = catalog.session_directory(session)
+        self.dvr.segment_duration = 2
+        command = self.dvr.build_recording_command(
+            str(directory / 'seg_%04d.mp4'),
+            input_args=['-f', 'lavfi', '-i', 'testsrc2=size=160x120:rate=30'],
+            duration=124, manifest_path=str(directory / 'segments.csv'),
+        )
+        subprocess.run(command, capture_output=True, timeout=60, check=True)
+        catalog.reconcile(session, finished=True)
+        self.dvr._running.set()
+        self.dvr.observe_content(123, time.monotonic())
+        with patch.multiple(Config, REPLAY_BEFORE_SECONDS=120, REPLAY_AFTER_SECONDS=0,
+                            CAMERA_LATENCY_SECONDS=0, MIN_FREE_BYTES=0, S3_BUCKET_NAME='simulated', DEVICE_TOKEN='simulated'):
+            store = EventStore(self.dvr)
+            accepted = store.accept(Config.DEVICE_ID, 'full_window_test', 1, '123000',
+                                    time.monotonic(), time.time())
+            self.assertTrue(accepted['accepted'], accepted)
+            cloud = Mock()
+            cloud.upload.side_effect = lambda event: self.assertAlmostEqual(
+                validate_video(Path(event['clip'])), 120.2, delta=0.05)
+            pipeline = PersistentPipeline(store, self.worker, cloud)
+            for _ in range(3):
+                pipeline.step(accepted['event_id'])
+            self.assertEqual(store.get(accepted['event_id'])['state'], 'REGISTRO_CONFIRMADO')
+            cloud.upload.assert_called_once()
+            cloud.register.assert_called_once()
+
     def test_clips_at_segment_start_middle_end_preserve_marker(self):
         catalog = self.dvr.catalog
         session = catalog.create_session(100, 'synthetic')

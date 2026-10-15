@@ -1,201 +1,90 @@
-# 📹 ClickLance — Gateway de Captura (Edge)
+# ClickLance — gateway de câmera IP
 
-> Módulo local (Edge PC) responsável pela gravação contínua, detecção de acionamentos do botão físico, recorte instantâneo de lances e sincronização com a nuvem (AWS S3 & Spring Boot API).
+Gateway Windows 0.3.0 em desenvolvimento: uma câmera/quadra e um Arduino Mega
+por instância. Captura RTSP, replay pela janela do clique, aceite local durável,
+pipeline recuperável e diagnóstico operacional. A Intelbras VIP real ainda
+precisa ser identificada e homologada.
 
----
+[Resultado da entrega e pendências](../docs/homologacao_2026-10-15.md) ·
+[Manual Windows](../docs/operacao_gateway_windows.md) ·
+[Protocolo do botão](../docs/contratos_gateway_botao.md) ·
+[Contrato cloud](../docs/contrato_cloud_gateway_v1.md)
 
-## 📌 Visão do Módulo
+## Executar
 
-O **Gateway de Captura** atua como o nó de computação de borda (*Edge*) instalado no computador local de cada quadra esportiva. Ele atende diretamente aos requisitos **RF01, RF02, RF04, RF05, RF06, RNF01, RNF02 e RNF03** definidos no [Documento de Visão do Produto](../docs/documento_visao_produto_replay_quadras_v0_1.pdf):
+Python 3.13, FFmpeg e ffprobe no PATH. Em `gateway_captura`:
 
-- **Gravação Ininterrupta (RNF01):** Gravação da webcam/câmera da quadra em buffer local contínuo durante todo o horário de funcionamento.
-- **Separação de Buffer e Clipe (RF04/RF05):** O buffer é particionado em segmentos curtos (ex: 60s), permitindo selecionar os últimos minutos para gerar o lance final sem travar a gravação.
-- **Velocidade de Processamento (RNF02):** Concatenação ultra-rápida via FFmpeg demuxer sem re-encoding (apenas cópia de streams), gerando o vídeo final em poucos segundos.
-- **Tolerância a Ruídos Elétricos:** Debounce de 5 segundos via software para evitar múltiplos cortes acidentais causados pelo botão físico.
-
----
-
-## 🧵 Arquitetura Multithreading
-
-Para garantir alta disponibilidade e evitar bloqueios na gravação durante operações de I/O pesadas (leitura serial ou upload para nuvem), a aplicação opera com 4 threads simultâneas:
-
-```
-                          ┌─────────────────────────────┐
-                          │     Main Thread (Serial)    │
-                          │   Escuta porta COM Arduino  │
-                          └──────────────┬──────────────┘
-                                         │ Evento de clique
-                                         ▼
-┌─────────────────────────┐       ┌──────────────┐       ┌────────────────────────┐
-│   Thread 1: DVR Record  │       │  Queue (FIFO)│       │  Thread 2: DVR Cleanup │
-│  ffmpeg -f segment (60s)│       └──────┬───────┘       │  Remove segmentos > 6h │
-└────────────┬────────────┘              │               └────────────────────────┘
-             │                           ▼
-             │ Grava              ┌──────────────┐
-             ▼ segmentos          │ Thread 3:    │ Concatena segmentos
-       [ ./segments/ ] ──────────►│ VideoWorker  ├─────────────► [ ./clips/lance.mp4 ]
-                                  └──────┬───────┘
-                                         │
-                         ┌───────────────┴───────────────┐
-                         ▼                               ▼
-                 [ AWS S3 Upload ]             [ Webhook POST Cloud API ]
-```
-
-1. **Main Thread (`src/serial_listener.py`):** Monitora a porta serial USB do Arduino em loop contínuo. Ao detectar `"Botao foi Pressionado!"`, valida o tempo desde o último clique (*debounce* de 5 segundos) e insere o evento em uma `Queue` thread-safe.
-2. **Thread 1 — DVR Record (`src/dvr_manager.py`):** Mantém o processo do FFmpeg ativo capturando o dispositivo de vídeo via DirectShow e fatiando o fluxo em blocos MP4 de 60 segundos com nomenclatura baseada em timestamp.
-3. **Thread 2 — DVR Cleanup (`src/dvr_manager.py`):** Rotina periódica que monitora a pasta de segmentos e exclui automaticamente arquivos com idade superior à configurada (`RETENTION_HOURS`), prevenindo o esgotamento do disco rígido.
-4. **Thread 3 — Video Processor Worker (`src/video_processor.py`):** Consumidor da fila que extrai os últimos $N$ segmentos gravados, gera o arquivo de manifesto do FFmpeg `concat`, une os vídeos em codec copy (`-c copy`), realiza o upload para o bucket AWS S3 via `boto3` e dispara a notificação HTTP JSON para a API central em Spring Boot.
-
----
-
-## 🛠️ Requisitos de Sistema
-
-- **Sistema Operacional:** Windows 10/11 (utiliza `dshow` para captura de câmeras USB).
-- **Python:** 3.10 ou superior.
-- **FFmpeg:** Instalado e configurado no `PATH` do sistema operacional.
-- **Hardware:**
-  - Câmera USB / Webcam conectada à quadra.
-  - Placa Arduino (Uno / Mega) com botão e display LCD (veja [`../botao_local/`](../botao_local/)).
-
----
-
-## ⚙️ Variáveis de Ambiente (`.env`)
-
-Copie o modelo [`./.env.example`](.env.example) para `.env`:
-
-```powershell
-cp .env.example .env
-```
-
-| Variável | Padrão | Descrição |
-|---|---|---|
-| `SERIAL_PORT` | `COM6` | Porta serial atribuída ao Arduino. |
-| `BAUD_RATE` | `9600` | Velocidade da comunicação serial com o microcontrolador. |
-| `CAMERA_DEVICE_NAME` | `USB Video Device` | Nome exato da câmera no Windows (DirectShow). |
-| `SEGMENT_DURATION_SECONDS` | `60` | Duração de cada pedaço de vídeo gravado continuamente. |
-| `SEGMENTS_DIR` | `segments` | Diretório local para armazenamento dos blocos temporários. |
-| `RETENTION_HOURS` | `6` | Tempo máximo (em horas) de retenção dos segmentos temporários. |
-| `SEGMENTS_TO_CONCAT` | `2` | Quantidade de segmentos anteriores ao clique para formar o clipe (ex: 2 × 60s = 2 min). |
-| `OUTPUT_DIR` | `clips` | Diretório onde os lances processados são salvos antes do upload. |
-| `AWS_ACCESS_KEY_ID` | — | Chave de acesso IAM para upload no S3. |
-| `AWS_SECRET_ACCESS_KEY` | — | Segredo de acesso IAM para o S3. |
-| `AWS_REGION` | `us-east-1` | Região do bucket AWS. |
-| `S3_BUCKET_NAME` | — | Nome do bucket S3 onde os vídeos finais serão armazenados. |
-| `API_URL` | `http://localhost:8080/api/replays` | Endpoint da API Cloud para registro do metadado do lance. |
-| `QUADRA_ID` | `quadra_001` | Identificador único da quadra neste computador local. |
-
-> 💡 **Como descobrir o nome exato da câmera no Windows:**
-> ```powershell
-> ffmpeg -list_devices true -f dshow -i dummy
-> ```
-
----
-
-## 🚀 Como Executar
-
-### 1. Instalação das dependências
-Crie um ambiente virtual (opcional) e instale os pacotes necessários:
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+Copy-Item .env.example .env
 ```
 
-### 2. Execução da Aplicação Principal
-```powershell
-python main.py
-```
-O console exibirá os logs de inicialização do DVR, da limpeza de disco, do worker e da escuta serial. Para encerrar de forma limpa, pressione `Ctrl + C`.
-
----
-
-## Fonte de vídeo de produção
-
-O projeto utilizará câmeras IP. A entrada RTSP está implementada e é o padrão;
-DirectShow continua disponível para webcam de teste. Equipamento informado:
-Intelbras VIP, modelo exato e stream ainda pendentes de confirmação. Podemos
-continuar sem webcam com vídeo sintético; homologação exige câmera IP real.
-Veja o [planejamento atualizado](../docs/sprints_gateway_e_botao.md).
-
-No `.env`, configure `CAMERA_SOURCE=rtsp`, `CAMERA_RTSP_URL` com o endereço
-confirmado do stream, `CAMERA_RTSP_TRANSPORT=tcp` (ou `udp`) e
-`CAMERA_TIMEOUT_SECONDS=10`. Não versionar credenciais. Para webcam de teste,
-use `CAMERA_SOURCE=dshow` com `CAMERA_DEVICE_NAME`. O fluxo é recodificado
-em H.264, sem áudio; FPS segue a entrada e `KEYFRAME_INTERVAL=30` define o GOP
-em frames. O modelo de câmera não é inferido para compor URLs automaticamente.
-
-Cada captura cria `segments/<sessão>/seg_*.mp4`, com lista CSV de fechamento e
-catálogo `segments/catalog.sqlite3`. Só segmentos fechados com stream/duração
-verificados ficam disponíveis. Os arquivos planos antigos não são importados
-para a sessão nova. A seleção temporal e as reservas estão verificadas com fonte
-controlada; consulte [evidências da Sprint 2](../docs/evidencias_sprint_2.md).
-
-O replay usa `REPLAY_BEFORE_SECONDS=120` e `REPLAY_AFTER_SECONDS=0`, com espera
-de até `REPLAY_WAIT_SECONDS=65` pelo fechamento. Cliques guardam sessão/janela
-antes de entrar na fila; limpeza respeita reservas persistentes. O corte é
-recodificado e validado antes do envio. `SEGMENTS_TO_CONCAT` ficou legado e não
-controla mais o worker. Falhas de upload/API preservam o clipe, sem retomada
-automática por enquanto.
-
-Para cliques reais RTSP, preencha `CAMERA_LATENCY_SECONDS` com valor medido;
-vazio bloqueia enfileiramento (`CAMERA_TIME_NOT_CALIBRATED`). A âncora usa
-progresso do FFmpeg e relógio monotônico de recepção; a calibração contra a cena
-real ainda precisa ser validada. Não preencher zero sem medir. O vídeo sintético
-não depende dessa configuração.
-
-## 🧪 Diagnóstico e testes automáticos
-
-Execute os testes sem câmera, Arduino ou serviços cloud:
+Preencha `.env` antes do uso real: porta COM, `DEVICE_ID`, token, bucket privado,
+API e URL RTSP confirmada da câmera. O identificador precisa corresponder ao
+firmware. `CAMERA_LATENCY_SECONDS` é uma compensação medida, sem padrão para
+RTSP; vazio bloqueia aceitação. Falta de token/bucket gera `NOT_PROVISIONED`.
+Para a antiga webcam de teste, use `CAMERA_SOURCE=dshow` e `CAMERA_DEVICE_NAME`.
 
 ```powershell
-.\.venv\Scripts\python.exe -X utf8 -m unittest discover -s tests -p "test_*.py" -v
+.\.venv\Scripts\python.exe -X utf8 main.py
 ```
 
-Os testes de vídeo precisam de `ffmpeg` e `ffprobe` no PATH; sem eles ficam
-explicitamente ignorados. A execução atual tem 35 testes aprovados, sem falhas
-esperadas. Os defeitos de seleção e exclusão prematura foram corrigidos.
+Atualize o [firmware CL1 do Mega](../botao_local/README.md) antes de usar o botão.
+O modo de produção não aceita a antiga mensagem de texto. Feche o monitor serial.
+Para encerrar no terminal, Ctrl+C. Autostart, saúde e recuperação estão no manual.
 
-Para gerar vídeo com relógio, frames e marcadores sem câmera:
+## Fluxo de produção
+
+- O DVR cria diretório exclusivo e lista de fechamento por sessão. SQLite
+  cataloga conteúdo e distingue arquivos em escrita, fechados, inválidos e ausentes.
+- O progresso do FFmpeg ancora conteúdo ao monotônico de recepção. A compensação
+  da câmera ainda precisa ser validada na rede real. Lacunas grandes de pacotes
+  são rejeitadas e timestamps não são preenchidos com frames duplicados.
+- O receptor CL1 identifica dispositivo/sessão/sequência. Evento e reserva são
+  gravados no mesmo commit antes de `ACCEPTED`; reenvio retorna o mesmo resultado.
+- `PersistentPipeline` consulta a fila SQLite, seleciona a janela original,
+  recodifica e valida o clipe, envia ao S3 e registra a API autenticada.
+- Fontes só são liberadas com clipe/checksum persistidos. Clipe só é removido
+  após registro remoto persistido. Erros têm etapa, backoff e intervenção.
+- Supervisão, mutexes, cotas e limpeza protegem pendências e recusam novos eventos
+  quando não há capacidade. Rede indisponível não exige descartar trabalho local.
+
+Padrão de replay: 120 s antes, zero depois e margem de 100 ms nas bordas
+disponíveis. `SEGMENTS_TO_CONCAT` é legado e não controla a produção. O encoder
+usa H.264 sem áudio, com teto VBV configurado por `CAPACITY_BITRATE`. Artefatos
+MP4 usam faststart; o custo e a imagem na resolução da quadra estão pendentes.
+
+O banco fica em `SEGMENTS_DIR/catalog.sqlite3` (esquema 1). Configure dados fora
+do diretório de código para atualizações. As referências de mídia são absolutas;
+restauração precisa preservar os caminhos originais.
+
+## Testar sem câmera
 
 ```powershell
+.\.venv\Scripts\python.exe -X utf8 -m unittest discover -s tests -p 'test_*.py' -v
 .\.venv\Scripts\python.exe -X utf8 test_pipeline.py --synthetic
+.\.venv\Scripts\python.exe -X utf8 demo_recovery.py
 ```
 
-Para diagnóstico físico interativo da câmera configurada no `.env`:
+O diagnóstico físico interativo, quando houver câmera configurada:
 
 ```powershell
 .\.venv\Scripts\python.exe -X utf8 test_pipeline.py
 ```
 
-A captura dura 6 segundos e usa o comando compartilhado com o DVR, com segmentos
-de 2 segundos. Cada execução mantém artefatos em diretório temporário exclusivo,
-incluindo `report.json` e stderr do FFmpeg. O script exige captura bem-sucedida,
-duração coerente e decodificação integral. A concatenação usa VideoProcessor;
-nenhum vídeo é enviado à nuvem.
+Cada diagnóstico usa diretório temporário exclusivo e imprime o caminho. A
+demonstração recuperável usa vídeo real sintético, SQLite e cloud simulada;
+exercita ACK perdido, falha de rede e reinício sem publicar em serviços externos.
 
-O modo sintético gera clipes pelo seletor legado e pelo corte temporal corrigido,
-com intervalos registrados em `report.json`, permitindo comparar o mesmo clique.
-Este comando substitui o antigo modo combinado com Arduino; o diagnóstico manual
-de leitura serial está em `tests/receptor_eventos.py` (ajuste a porta antes de
-executar). Captura física, serial física e cloud são validações distintas.
+Para incluir RTSP local, instale o executável oficial do MediaMTX e configure:
 
-Veja [resultados e limites da Sprint 1](../docs/evidencias_sprint_1.md).
+```powershell
+$env:MEDIAMTX_PATH='C:\ferramentas\mediamtx.exe'
+.\.venv\Scripts\python.exe -X utf8 -m unittest discover -s tests -p 'test_*.py' -v
+```
 
----
-
-## 📋 Status de Implementação e Backlog
-
-Conforme registrado em [`../docs/status_projeto.md`](../docs/status_projeto.md):
-
-### ✅ Concluído no Gateway
-- [x] Estrutura modular (`config`, `logger`, `dvr_manager`, `serial_listener`, `video_processor`).
-- [x] Gravação segmentada resiliente a corrupções de arquivo.
-- [x] Concatenação direta sem perda de qualidade e baixo consumo de CPU.
-- [x] Upload S3 via SDK oficial `boto3`.
-- [x] Notificação via payload JSON para API Cloud.
-- [x] Suite de testes de bancada offline.
-
-### ⏳ Backlog Técnico do Gateway
-- [ ] **Fila de Retentativas Offline:** Armazenamento local com SQLite ou fila em disco para reenvio automático caso haja instabilidade de internet na quadra.
-- [ ] **Inicialização Automática com o Windows:** Criação de script `.bat` ou serviço de sistema para subir o `main.py` após reinicialização do PC da quadra.
-- [ ] **Heartbeat e Telemetria Remota:** Envio periódico de status (CPU, espaço em disco, status da câmera) para monitoramento em tempo real da quadra.
+Sem esse executável o teste de rede fica ignorado. Sem FFmpeg/ffprobe os testes
+de mídia ficam ignorados. A execução completa registrada tem 67 testes aprovados,
+sem falhas esperadas ou ignorados. Compilação do Mega também passou; validação
+de câmera/botão físicos, AWS/backend reais e boot no PC alvo continuam pendentes.

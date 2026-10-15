@@ -100,12 +100,15 @@ class RemoteConfig:
         if not Config.CONFIG_URL:
             return False
         response = self.http.get(Config.CONFIG_URL, timeout=(5, 10),
+                                 allow_redirects=False,
                                  headers={'X-Device-Token': Config.DEVICE_TOKEN})
         if response.status_code in (401, 403, 410):
             previous = self.cached() or {'version': 'revoked', 'active': False, 'settings': {}}
             previous['active'] = False
             self.apply(previous)
             return True
+        if 300 <= response.status_code < 400:
+            raise ValueError('CONFIGURATION_REDIRECT')
         response.raise_for_status()
         return self.apply(response.json())
 

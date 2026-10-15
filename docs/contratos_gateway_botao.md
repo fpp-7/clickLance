@@ -1,8 +1,9 @@
 # Contratos do gateway e botão — versão 1
 
-Data: 15/10/2026. Especificação inicial para GW-01 e GW-02. Estes contratos
-orientam a implementação; o firmware e o gateway atuais ainda usam a mensagem
-legada e não oferecem aceitação durável.
+Data: 15/10/2026. Contratos de GW-01/GW-02 implementados no caminho de produção
+CL1. Aceitação durável e retransmissão foram verificadas automaticamente;
+firmware compilado para Mega. Validação física e sincronização com a câmera
+real seguem pendentes. Consulte o [relatório atual](homologacao_2026-10-15.md).
 
 ## Tempo e capacidade
 
@@ -21,14 +22,14 @@ abre sessão nova, sem unir silenciosamente vídeo separado por lacunas.
 |---|---|---|
 | Janela anterior / posterior | 120 s / 0 s | Independentes; janela fechada inclui o clique |
 | Segmento | 60 s | Aguardar fechamento por até 65 s após o fim da janela |
-| FPS / GOP | 30 / 30 frames | Alvo de um keyframe por segundo; validar na câmera |
+| FPS / GOP | FPS da fonte / 30 frames | Referência inicial 30 FPS; validar na câmera |
 | Tolerância das bordas | 1 s de conteúdo extra por borda | Não permite excluir o clique ou reduzir a janela; recodificar se necessário |
 | Debounce elétrico | 50 ms estáveis | Firmware, um evento por pressão e soltura |
 | Cooldown de produto | 5 s | Medido por relógio monotônico desde a última aceitação |
 | Fila pendente | 100 eventos | Rejeitar antes de exceder; não descartar aceitos |
 | Espaço livre mínimo | 2 GiB | Além da reserva estimada do novo evento |
 | Cota buffer / clipes pendentes | 24 GiB / 20 GiB | Reservas impedem limpeza; saturação bloqueia novas aceitações |
-| Bitrate de dimensionamento | 8 Mbit/s | Hipótese de capacidade, não limite aplicado ao encoder atual |
+| Bitrate de dimensionamento | 8 Mbit/s | Teto VBV no encoder com buffer de 2 s; medir qualidade/capacidade reais |
 | Retenção do buffer | 6 h | Aproximadamente 21,6 GB a 8 Mbit/s |
 | Tentativas de rede | Até 10 por ciclo | Espera 5 s × 2^(tentativa−1), teto 15 min, jitter de até 20% |
 
@@ -52,6 +53,9 @@ Reinício abre nova sessão; não ligar intervalos monotônicos de processos dis
 | Lacuna ou janela parcial | Rejeitar `VIDEO_GAP` |
 | Disco abaixo da margem, cota ou fila excedida | Rejeitar `CAPACITY` |
 | Internet ausente, vídeo e capacidade disponíveis | Aceitar localmente |
+| Instalação sem bucket ou token | Rejeitar `NOT_PROVISIONED` |
+| Dispositivo inativado | Rejeitar `DEVICE_INACTIVE` |
+| RTSP sem compensação de latência configurada | Rejeitar `CAMERA_TIME_NOT_CALIBRATED` |
 | Mesma identidade serial retransmitida | Retornar resultado original, sem novo cooldown/evento |
 
 A reserva inclui o segmento aberto que contém o clique e sua finalização.
@@ -117,4 +121,8 @@ lookup de identidade persistida continua permitido antes do novo handshake.
 GW-01/GW-02: especificação registrada; valores precisam de medição no hardware.
 GW-03: diagnóstico e regressões verificados automaticamente; veja
 [evidências](evidencias_sprint_1.md). Validação física permanece pendente.
-Implementar contratos temporais na Sprint 2 e aceitação/protocolo na Sprint 3.
+Contratos temporais, aceitação e protocolo estão implementados. O corte usa
+margem de 100 ms nas bordas disponíveis e recodificação validada; lacunas de
+pacotes acima de 250 ms são excluídas da cobertura. A admissão reserva três
+vezes o tamanho estimado, portanto cotas podem limitar a fila antes de 100 eventos.
+Homologação física/cloud e métricas reais continuam pendentes.

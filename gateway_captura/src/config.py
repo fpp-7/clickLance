@@ -1,4 +1,7 @@
 import os
+import math
+import re
+from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -17,6 +20,7 @@ class Config:
     CAMERA_RTSP_TRANSPORT: str = os.getenv("CAMERA_RTSP_TRANSPORT", "tcp")
     CAMERA_TIMEOUT_SECONDS: float = float(os.getenv("CAMERA_TIMEOUT_SECONDS", "10"))
     KEYFRAME_INTERVAL: int = int(os.getenv("KEYFRAME_INTERVAL", "30"))
+    MAX_PACKET_GAP_SECONDS: float = float(os.getenv('MAX_PACKET_GAP_SECONDS', '0.25'))
     # RTSP exige compensação medida antes de enfileirar cliques reais.
     CAMERA_LATENCY_SECONDS: float | None = (
         float(os.environ["CAMERA_LATENCY_SECONDS"])
@@ -47,12 +51,30 @@ class Config:
     CONFIG_VERSION: str = 'local'
 
     # --- AWS S3 ---
-    AWS_ACCESS_KEY_ID: str | None = os.getenv("AWS_ACCESS_KEY_ID")
-    AWS_SECRET_ACCESS_KEY: str | None = os.getenv("AWS_SECRET_ACCESS_KEY")
-    AWS_SESSION_TOKEN: str | None = os.getenv('AWS_SESSION_TOKEN')
+    AWS_ACCESS_KEY_ID: str | None = os.getenv("AWS_ACCESS_KEY_ID") or None
+    AWS_SECRET_ACCESS_KEY: str | None = os.getenv("AWS_SECRET_ACCESS_KEY") or None
+    AWS_SESSION_TOKEN: str | None = os.getenv('AWS_SESSION_TOKEN') or None
     AWS_REGION: str = os.getenv("AWS_REGION", "us-east-1")
-    S3_BUCKET_NAME: str | None = os.getenv("S3_BUCKET_NAME")
+    S3_BUCKET_NAME: str | None = os.getenv("S3_BUCKET_NAME") or None
 
     # --- API Backend ---
     API_URL: str = os.getenv("API_URL", "http://localhost:8080/api/v1/replays")
     QUADRA_ID: str = os.getenv("QUADRA_ID", "quadra_001")
+
+    @classmethod
+    def validate_local(cls):
+        if not re.fullmatch(r'[A-Za-z0-9_-]{1,32}', cls.DEVICE_ID):
+            raise ValueError('DEVICE_ID inválido')
+        for field in ('REPLAY_BEFORE_SECONDS', 'SEGMENT_DURATION_SECONDS', 'KEYFRAME_INTERVAL',
+                      'MAX_PENDING_EVENTS', 'BUFFER_QUOTA_BYTES', 'CLIPS_QUOTA_BYTES',
+                      'CAPACITY_BITRATE', 'MAX_RETRIES', 'CONFIG_REFRESH_SECONDS',
+                      'REPLAY_FFMPEG_TIMEOUT_SECONDS', 'MAX_PACKET_GAP_SECONDS'):
+            value = getattr(cls, field)
+            if not math.isfinite(value) or value <= 0:
+                raise ValueError('Configuração local inválida: ' + field)
+        for field in ('REPLAY_AFTER_SECONDS', 'REPLAY_WAIT_SECONDS', 'MIN_FREE_BYTES'):
+            if not math.isfinite(getattr(cls, field)) or getattr(cls, field) < 0:
+                raise ValueError('Configuração local inválida: ' + field)
+        segments, clips = Path(cls.SEGMENTS_DIR).resolve(), Path(cls.OUTPUT_DIR).resolve()
+        if segments.is_relative_to(clips) or clips.is_relative_to(segments):
+            raise ValueError('SEGMENTS_DIR e OUTPUT_DIR devem ser diretórios separados')

@@ -70,6 +70,10 @@ class EventStore:
     def capacity(self):
         if not self.enabled:
             raise ValueError('DEVICE_INACTIVE')
+        if not Config.S3_BUCKET_NAME or not Config.DEVICE_TOKEN:
+            raise ValueError('NOT_PROVISIONED')
+        if self.dvr.capacity_paused:
+            raise ValueError('CAPACITY')
         with self.lock:
             pending = self.db.execute("SELECT COUNT(*) FROM events WHERE state!='REGISTRO_CONFIRMADO'").fetchone()[0]
         if pending >= Config.MAX_PENDING_EVENTS:
@@ -79,7 +83,7 @@ class EventStore:
         reserved = pending * estimated
         if shutil.disk_usage(self.catalog.root).free < Config.MIN_FREE_BYTES + reserved + estimated:
             raise ValueError('CAPACITY')
-        if tree_bytes(self.catalog.root) + estimated > Config.BUFFER_QUOTA_BYTES:
+        if tree_bytes(self.catalog.root) + reserved + estimated > Config.BUFFER_QUOTA_BYTES:
             raise ValueError('CAPACITY')
         if tree_bytes(Config.OUTPUT_DIR) + reserved + estimated > Config.CLIPS_QUOTA_BYTES:
             raise ValueError('CAPACITY')
@@ -94,13 +98,17 @@ class EventStore:
                             (device, session, sequence, payload, json.dumps(reply)))
             return reply
 
-    def health(self):
+    def health_reason(self):
         try:
             self.capacity()
             self.dvr.snapshot_replay(time.monotonic(), reserve=False)
-            return 'READY'
+            return None
         except ValueError as exc:
-            return 'WARMING_UP' if str(exc) == 'WARMING_UP' else 'UNAVAILABLE'
+            return str(exc)
+
+    def health(self):
+        reason = self.health_reason()
+        return 'READY' if reason is None else ('WARMING_UP' if reason == 'WARMING_UP' else 'UNAVAILABLE')
 
     def accept(self, device, session, sequence, payload, click_mono, click_utc, *, valid_session=True):
         with self.lock:
@@ -177,7 +185,7 @@ class EventStore:
             if isinstance(error, ValueError):
                 code = str(error) if str(error).isupper() and len(str(error)) < 64 else code
             stop = permanent or attempt >= Config.MAX_RETRIES
-            delay = min(900, 5 * 2**min(attempt - 1, 12)) * random.uniform(1, 1.2)
+            delay = min(900, 5 * 2**min(attempt - 1, 12) * random.uniform(1, 1.2))
             self.db.execute('INSERT INTO attempts VALUES (?,?,?,?)',
                             (event_id, time.time(), event['state'], code))
             self.db.execute('UPDATE events SET attempts=?,next_attempt=?,error=?,state=? WHERE id=?',

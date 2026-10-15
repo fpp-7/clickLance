@@ -42,6 +42,7 @@ class CatalogTests(unittest.TestCase):
         (folder / 'segments.csv').write_text('seg_0000.mp4,0,2\npartial', encoding='utf-8')
         probe = SimpleNamespace(stdout=json.dumps({
             'format': {'duration': '2'}, 'streams': [{'codec_type': 'video'}],
+            'packets': [{'pts_time': str(i/30), 'duration_time': str(1/30)} for i in range(60)],
         }))
         with patch('src.segment_catalog.subprocess.run', return_value=probe):
             self.catalog.reconcile(session)
@@ -72,6 +73,7 @@ class CatalogTests(unittest.TestCase):
         (folder / 'segments.csv').write_text('seg_0000.mp4,0,2\n', encoding='utf-8')
         result = SimpleNamespace(stdout=json.dumps({
             'format': {'duration': '2'}, 'streams': [{'codec_type': 'video'}],
+            'packets': [{'pts_time': str(i/30), 'duration_time': str(1/30)} for i in range(60)],
         }))
         with patch('src.segment_catalog.subprocess.run', return_value=result):
             self.catalog.reconcile(session)
@@ -91,11 +93,26 @@ class CatalogTests(unittest.TestCase):
             'seg_0000.mp4,0,2\nseg_0002.mp4,4,6\n', encoding='utf-8')
         probe = SimpleNamespace(stdout=json.dumps({
             'format': {'duration': '2'}, 'streams': [{'codec_type': 'video'}],
+            'packets': [{'pts_time': str(i/30), 'duration_time': str(1/30)} for i in range(60)],
         }))
         with patch('src.segment_catalog.subprocess.run', return_value=probe):
             self.catalog.reconcile(session, finished=True)
         self.assertEqual(self.catalog.coverage_gaps(session, 0, 6), [(2, 4)])
         self.assertEqual(self.catalog.coverage_gaps(session, 4, 6), [])
+
+    def test_internal_packet_gap_is_not_hidden_by_segment_duration(self):
+        session = self.catalog.create_session(100, 'rtsp')
+        folder = self.catalog.session_directory(session)
+        (folder / 'seg_0000.mp4').write_bytes(b'fixture')
+        (folder / 'segments.csv').write_text('seg_0000.mp4,0,2\n', encoding='utf-8')
+        probe = SimpleNamespace(stdout=json.dumps({
+            'format': {'duration': '2'}, 'streams': [{'codec_type': 'video'}],
+            'packets': [{'pts_time': '0'}, {'pts_time': '1.5'}],
+        }))
+        with patch('src.segment_catalog.subprocess.run', return_value=probe):
+            self.catalog.reconcile(session, finished=True)
+        self.assertEqual(self.catalog.records(session)[0]['status'], 'INVALID')
+        self.assertEqual(self.catalog.coverage_gaps(session, 0, 2), [(0, 2)])
 
 
 class CameraInputTests(unittest.TestCase):
