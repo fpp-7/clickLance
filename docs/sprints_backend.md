@@ -1,6 +1,6 @@
 # Backend — sprints e histórias de implementação
 
-Atualizado em 15/10/2026. Planejamento; nenhuma história implementada. Piloto gratuito com biblioteca, pagamentos depois.
+Atualizado em 15/10/2026. BE-001 implementada e proposta para revisão; demais histórias em planejamento. Piloto gratuito com biblioteca, pagamentos depois.
 
 Este é o único backlog do backend. As histórias referenciam o [catálogo de requisitos](requisitos_e_regras_mvp.md), as [decisões D01–D14](overview_backend_refinamento.md#3-o-que-falta-e-quando-precisa-estar-resolvido), as [diretrizes de dados](modelagem_banco_de_dados.md) e o [contrato cloud v1](contrato_cloud_gateway_v1.md). Não copiar payloads ou DDL para este arquivo. Os IDs `US-01–12` do catálogo são referências anteriores; os IDs executáveis deste plano são `BE-001–031`.
 
@@ -17,7 +17,7 @@ Uma história por tarefa. Escolher a primeira elegível na ordem abaixo; conclui
 | Em revisão | Implementação e verificações disponíveis para revisão. |
 | Concluída | Aceites e verificações passaram; resultado revisado e integrado. |
 
-**Fila inicial:** BE-001 está pronta para implementação; BE-002 está pronta para refinamento. Todas as demais aguardam dependências e, quando indicado, decisões. Não criar endpoints fictícios, bypass de autorização ou políticas silenciosas para declarar uma história concluída.
+**Fila atual:** BE-001 está em revisão, com [implementação e evidências locais](../backend/README.md#estado-e-evidências); BE-002 está pronta para refinamento. Todas as demais aguardam dependências e, quando indicado, decisões. Não criar endpoints fictícios, bypass de autorização ou políticas silenciosas para declarar uma história concluída.
 
 Cada ficha abaixo define **objetivo**, **dependências/decisões**, **escopo**, **aceite**, **verificação** e **referências**. Os caminhos são relativos à raiz do repositório. A estrutura interna de pacotes e os comandos serão fixados em BE-001; fichas seguintes referem-se a módulos lógicos, sem impor arquivos ainda inexistentes.
 
@@ -55,6 +55,7 @@ Sprints posteriores permanecem condicionadas às decisões indicadas. A autoriza
 
 - **Objetivo:** como desenvolvedor, iniciar e verificar o backend a partir de um checkout limpo.
 - **Depende de:** nenhuma história; não depende de D02/D03. **Estado inicial:** pronta.
+- **Estado atual:** em revisão (15/10/2026). Build e integração com PostgreSQL real verificados; execução via Docker Compose não exercitada nesta máquina. Evidências e comandos no README do backend.
 - **Escopo:** somente `backend/`: Spring Boot/Maven Wrapper, configuração externa, PostgreSQL local, Flyway e README de execução. Registrar versões fixadas, JDK, pacote raiz e módulos de build antes de expandir o código. Disponibilizar verificação mínima de saúde, sem expor configuração sensível.
 - **Aceite:** build e aplicação usam comandos reproduzíveis no Windows; conexão/configuração inválida gera erro acionável; credenciais ficam em variáveis/arquivo local ignorado, com exemplo sem segredos. Incluir uma migration técnica mínima, sem antecipar entidades/políticas de outras histórias. Nenhuma rota de negócio é aberta por conveniência.
 - **Verificação:** build do wrapper, inicialização com PostgreSQL real local e execução do Flyway em banco vazio e reinicialização sem reaplicar migration. Documentar pré-requisitos de Java/Docker ou serviço PostgreSQL; indisponibilidade de runtime é limitação explícita, não validação aprovada.

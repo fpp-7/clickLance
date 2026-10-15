@@ -1,0 +1,152 @@
+# ClickLance Backend
+
+Fundação BE-001. Uma aplicação modular Maven, pacote raiz `br.com.clicklance`.
+Não há entidades, autenticação administrativa ou endpoints de negócio nesta entrega.
+
+## Base técnica fixada
+
+| Componente | Versão / escolha |
+|---|---|
+| JDK | Java 21 LTS; validação local com Temurin 21.0.12.1 |
+| Spring Boot | 4.1.1 |
+| Maven | 3.9.16 pelo Wrapper 3.3.4, distribuição verificada por SHA-256 |
+| PostgreSQL | 17.11; imagem local `postgres:17.11-bookworm` |
+| Flyway, driver JDBC e plugins | Versões gerenciadas pelo parent Spring Boot fixado no `pom.xml` |
+| Build | Um único módulo; JAR executável `target/backend-0.1.0-SNAPSHOT.jar` |
+
+Java 21 aproveita o JDK LTS já disponível. A base usa versões estáveis, JDBC e
+Flyway sem antecipar ORM ou infraestrutura das próximas histórias. O wrapper
+`only-script` dispensa Maven instalado; o primeiro build precisa de internet.
+Fontes: [requisitos Spring Boot](https://docs.spring.io/spring-boot/system-requirements.html),
+[Maven Wrapper](https://maven.apache.org/tools/wrapper/index.html) e
+[inicialização Flyway](https://docs.spring.io/spring-boot/how-to/data-initialization.html).
+
+## Estrutura
+
+```text
+src/main/java/br/com/clicklance/  aplicação; módulos funcionais entram nas próximas histórias
+src/main/resources/             configuração e db/migration (fonte executável do schema)
+src/test/java/br/com/clicklance/ testes de integração *IT
+.mvn/wrapper/                   versão e checksum da distribuição Maven
+compose.yaml                    PostgreSQL local com volume persistente
+```
+
+## Executar no Windows (PowerShell)
+
+Pré-requisitos: JDK 21 e Docker Desktop com Docker Compose e containers Linux,
+ou PostgreSQL 17.11 como serviço local. Rode os comandos desta pasta.
+
+```powershell
+$env:JAVA_HOME = 'C:\Program Files\Eclipse Adoptium\jdk-21.0.12.101-hotspot'
+.\mvnw.cmd --version
+Copy-Item .env.example .env
+```
+
+Edite `.env` e substitua `DB_PASSWORD` por uma senha local exclusiva. O arquivo
+é ignorado pelo Git e lido tanto pelo Compose quanto pelo Spring. Use propriedades
+simples `CHAVE=valor`, sem aspas, interpolação ou comentários no fim da linha.
+Variáveis do processo têm precedência na aplicação; mantenha os mesmos valores
+para o Compose. Não reutilize credenciais reais no exemplo.
+
+```powershell
+docker compose up -d --wait
+.\mvnw.cmd -B -ntp verify
+.\mvnw.cmd spring-boot:run
+```
+
+Em outro terminal:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8080/actuator/health
+```
+
+A resposta contém apenas `status: UP`; o indicador verifica também a conexão com
+o banco. Só saúde é exposta pelo Actuator, sem componentes, configurações ou
+detalhes. A aplicação escuta em `127.0.0.1` por padrão. `SERVER_PORT` permite
+alterar a porta; `SERVER_ADDRESS` só deve ser alterado conforme a implantação.
+
+Para executar o pacote, depois de `verify`:
+
+```powershell
+& "$env:JAVA_HOME\bin\java.exe" -jar target/backend-0.1.0-SNAPSHOT.jar
+```
+
+Encerre a aplicação com Ctrl+C e o banco com `docker compose stop`. O volume
+preserva dados. Não remova volumes para resolver erro de migration. Alterar
+`POSTGRES_PASSWORD` no Compose não troca a senha de uma instalação já existente.
+
+### PostgreSQL como serviço
+
+Crie um usuário e banco locais dedicados e informe `DB_HOST`, `DB_PORT`,
+`DB_NAME`, `DB_USER` e `DB_PASSWORD` no `.env` ou no ambiente. O usuário precisa
+de permissão para migrations no schema. A aplicação não cria o banco nem seu
+usuário; Flyway cria sua tabela de histórico e executa a migration técnica V1.
+Reiniciar valida o histórico sem reaplicar V1. Não há H2 nem fallback em memória.
+
+## Verificação com banco real
+
+`verify` compila, verifica e empacota sem exigir banco; **não executa os testes
+`*IT`**. Para exercitar a aplicação e Flyway, use um banco dedicado:
+
+```powershell
+# Para os valores de usuário do exemplo; ajuste se o usuário local for outro.
+docker compose exec postgres createdb -U clicklance clicklance_test
+$env:DB_NAME = 'clicklance_test'
+.\mvnw.cmd -B -ntp -Pintegration verify
+# Segunda inicialização: mesmo banco, mesma instalação e apenas uma V1.
+.\mvnw.cmd -B -ntp -Pintegration verify
+Remove-Item Env:DB_NAME
+```
+
+Se `DB_NAME` já estava definido, restaure seu valor anterior ao terminar. Se o
+banco de teste já existe, não repita `createdb`. Nunca aponte os testes para um
+banco compartilhado ou de produção. O perfil falha quando PostgreSQL está
+indisponível; não ignora testes nem substitui o banco por um simulador.
+
+Os testes verificam aplicação HTTP real, saúde mínima, ausência de rotas de
+negócio/configuração e persistência da migration sem reaplicação. A V1 contém
+somente o marco técnico `backend_installation`, sem políticas ou entidades futuras.
+
+### Diagnóstico de inicialização
+
+| Sintoma | Ação |
+|---|---|
+| `JAVA_HOME` inválido ou compilador incompatível | Apontar para a raiz do JDK 21, não para `bin`. |
+| Senha ausente / autenticação inválida | Criar `.env` nesta pasta ou definir `DB_PASSWORD` no processo; ausência também pode aparecer como falha de autenticação JDBC. |
+| `Connection refused` / timeout JDBC | Conferir host/porta, serviço ou `docker compose ps`; iniciar o banco. |
+| `password authentication failed` | Conferir usuário/senha e a credencial efetiva do volume existente. |
+| Banco inexistente | Criar o banco dedicado antes de iniciar e conferir `DB_NAME`. |
+| Flyway checksum/validation error | Investigar a divergência; não editar migration aplicada ou apagar dados. |
+| Porta HTTP ocupada | Definir `SERVER_PORT` livre. |
+
+Erros de banco impedem o startup via Flyway; uma aplicação sem conexão válida
+não é apresentada como pronta. Não inclua senhas em URLs JDBC, comandos ou logs.
+
+## Estado e evidências
+
+**BE-001 proposta para revisão em 15/10/2026.**
+
+| Verificação executada | Resultado |
+|---|---|
+| `.\mvnw.cmd -B -ntp verify` | Build e empacotamento aprovados com JDK 21. |
+| Startup/Flyway em PostgreSQL 17.11 vazio | V1 aplicada, marco técnico e histórico persistidos. |
+| `.\mvnw.cmd -B -ntp -Pintegration '-Ddebug=false' verify` | 2 testes aprovados, zero ignorados; HTTP real e PostgreSQL real. |
+| Repetição do mesmo comando no mesmo banco | 2 testes aprovados; V1 não reaplicada, um registro técnico e um histórico. |
+| JAR com `.env` em diretório temporário e `--spring.main.web-application-type=none --debug=false` | Startup aprovado e histórico validado; senha ausente da saída capturada. |
+| JAR com senha incorreta / ausente | Exit 1; erro JDBC de autenticação (`28P01`). |
+| JAR com porta de banco indisponível | Exit 1; erro de conexão (`08001`) com orientação de host/porta. |
+| Regras Git | `.env` e `target/` ignorados; exemplo e fontes versionáveis. |
+
+O PostgreSQL real foi executado temporariamente em loopback, com autenticação
+SCRAM e senha gerada, a partir dos binários Windows 17.11 empacotados por
+[Zonky](https://github.com/zonkyio/embedded-postgres-binaries). Não houve
+substituição por H2/simulador. O cluster foi criado fora do repositório. Logs de
+verificação ficam em `target/be001-*.log` e relatórios em `target/failsafe-reports/`,
+todos locais e ignorados. O teste do JAR não iniciou servidor HTTP; HTTP foi
+exercitado pelos testes de integração.
+
+Docker não está instalado nesta máquina: **Compose não foi executado**. A
+existência da tag da imagem foi conferida no registry, mas não substitui subir o
+container. AWS, deploy e homologação de produção não fazem parte de BE-001.
+BE-002 e as demais histórias não foram iniciadas. A conclusão da história depende
+da revisão e integração, conforme o guia do agente.
