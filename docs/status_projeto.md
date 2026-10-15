@@ -2,6 +2,10 @@
 
 Este documento registra o que já foi implementado no módulo local (Edge) do ClickLance e quais são os próximos passos de todo o ecossistema.
 
+> **Execução da Sprint 1 (15/10/2026):** contratos iniciais e diagnóstico automatizado disponíveis. Foram executados 10 testes (6 aprovados, 4 falhas esperadas de defeitos conhecidos) e diagnóstico sintético com FFmpeg real. Consulte [evidências e limites](evidencias_sprint_1.md). Validação física e correções das próximas sprints permanecem pendentes.
+
+> **Planejamento de evolução (15/10/2026):** consulte [Sprints do gateway e do botão](sprints_gateway_e_botao.md). O plano trata as limitações apontadas no [parecer de consultoria](review_consultoria_2026-10-13.md); seus itens são propostos e não representam implementação concluída. As marcações históricas abaixo não substituem as evidências de validação exigidas nesse ciclo.
+
 ## ✅ O que já foi feito (Concluído)
 
 1. **Estruturação do Projeto Edge**

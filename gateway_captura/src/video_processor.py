@@ -28,7 +28,7 @@ from .logger import logger
 class VideoProcessor(threading.Thread):
     """Consumidor: lê eventos da fila e executa o pipeline completo de lance."""
 
-    def __init__(self, event_queue: Queue, dvr: DVRManager) -> None:
+    def __init__(self, event_queue: Queue, dvr: DVRManager, *, s3_client=None) -> None:
         super().__init__(name="WorkerThread", daemon=True)
         self.queue = event_queue
         self.dvr = dvr
@@ -39,7 +39,7 @@ class VideoProcessor(threading.Thread):
         self.api_url: str = Config.API_URL
 
         # Inicializa o cliente S3
-        self.s3_client = boto3.client(
+        self.s3_client = s3_client if s3_client is not None else boto3.client(
             "s3",
             aws_access_key_id=Config.AWS_ACCESS_KEY_ID,
             aws_secret_access_key=Config.AWS_SECRET_ACCESS_KEY,

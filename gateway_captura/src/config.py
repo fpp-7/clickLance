@@ -12,6 +12,11 @@ class Config:
     BAUD_RATE: int = int(os.getenv("BAUD_RATE", "9600"))
 
     # --- DVR ---
+    CAMERA_SOURCE: str = os.getenv("CAMERA_SOURCE", "rtsp")
+    CAMERA_RTSP_URL: str = os.getenv("CAMERA_RTSP_URL", "")
+    CAMERA_RTSP_TRANSPORT: str = os.getenv("CAMERA_RTSP_TRANSPORT", "tcp")
+    CAMERA_TIMEOUT_SECONDS: float = float(os.getenv("CAMERA_TIMEOUT_SECONDS", "10"))
+    KEYFRAME_INTERVAL: int = int(os.getenv("KEYFRAME_INTERVAL", "30"))
     CAMERA_DEVICE_NAME: str = os.getenv("CAMERA_DEVICE_NAME", "USB Video Device")
     SEGMENT_DURATION_SECONDS: int = int(os.getenv("SEGMENT_DURATION_SECONDS", "60"))
     SEGMENTS_DIR: str = os.getenv("SEGMENTS_DIR", "segments")

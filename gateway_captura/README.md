@@ -109,20 +109,64 @@ O console exibirá os logs de inicialização do DVR, da limpeza de disco, do wo
 
 ---
 
-## 🧪 Modo de Diagnóstico Offline (`test_pipeline.py`)
+## Fonte de vídeo de produção
 
-Para validar o hardware local sem precisar da nuvem (sem AWS ou API Spring Boot ativas), execute a suíte de testes do pipeline:
+O projeto utilizará câmeras IP. A entrada RTSP está implementada e é o padrão;
+DirectShow continua disponível para webcam de teste. Equipamento informado:
+Intelbras VIP, modelo exato e stream ainda pendentes de confirmação. Podemos
+continuar sem webcam com vídeo sintético; homologação exige câmera IP real.
+Veja o [planejamento atualizado](../docs/sprints_gateway_e_botao.md).
+
+No `.env`, configure `CAMERA_SOURCE=rtsp`, `CAMERA_RTSP_URL` com o endereço
+confirmado do stream, `CAMERA_RTSP_TRANSPORT=tcp` (ou `udp`) e
+`CAMERA_TIMEOUT_SECONDS=10`. Não versionar credenciais. Para webcam de teste,
+use `CAMERA_SOURCE=dshow` com `CAMERA_DEVICE_NAME`. O fluxo é recodificado
+em H.264, sem áudio; FPS segue a entrada e `KEYFRAME_INTERVAL=30` define o GOP
+em frames. O modelo de câmera não é inferido para compor URLs automaticamente.
+
+Cada captura cria `segments/<sessão>/seg_*.mp4`, com lista CSV de fechamento e
+catálogo `segments/catalog.sqlite3`. Só segmentos fechados com stream/duração
+verificados ficam disponíveis. Os arquivos planos antigos não são importados
+para a sessão nova. A seleção temporal e as reservas do replay ainda estão em
+desenvolvimento; consulte [evidências da Sprint 2](../docs/evidencias_sprint_2.md).
+
+## 🧪 Diagnóstico e testes automáticos
+
+Execute os testes sem câmera, Arduino ou serviços cloud:
 
 ```powershell
-python test_pipeline.py
+.\.venv\Scripts\python.exe -X utf8 -m unittest discover -s tests -p "test_*.py" -v
 ```
 
-O script executará automaticamente:
-1. **Verificação de dependências:** Checagem do executável do FFmpeg.
-2. **Diagnóstico da Câmera:** Teste de captura curta (3 segundos) para validar DirectShow.
-3. **Simulação de DVR:** Gravação de múltiplos segmentos temporários para verificar a lógica de rotação.
-4. **Simulação de Acionamento:** Concatenação dos segmentos e geração de um vídeo `lance_teste.mp4`.
-5. **Teste de Limpeza:** Validação da rotina de remoção de segmentos expirados.
+Os testes de vídeo precisam de `ffmpeg` e `ffprobe` no PATH; sem eles ficam
+explicitamente ignorados. Quatro regressões estão marcadas como falhas esperadas
+até as correções de GW-04/GW-05/GW-07.
+
+Para gerar vídeo com relógio, frames e marcadores sem câmera:
+
+```powershell
+.\.venv\Scripts\python.exe -X utf8 test_pipeline.py --synthetic
+```
+
+Para diagnóstico físico interativo da câmera configurada no `.env`:
+
+```powershell
+.\.venv\Scripts\python.exe -X utf8 test_pipeline.py
+```
+
+A captura dura 6 segundos e usa o comando compartilhado com o DVR, com segmentos
+de 2 segundos. Cada execução mantém artefatos em diretório temporário exclusivo,
+incluindo `report.json` e stderr do FFmpeg. O script exige captura bem-sucedida,
+duração coerente e decodificação integral. A concatenação usa VideoProcessor;
+nenhum vídeo é enviado à nuvem.
+
+O modo sintético também gera um replay pelo seletor atual para demonstrar a
+exclusão do segmento do clique. Captura válida não significa replay correto.
+Este comando substitui o antigo modo combinado com Arduino; o diagnóstico manual
+de leitura serial está em `tests/receptor_eventos.py` (ajuste a porta antes de
+executar). Captura física, serial física e cloud são validações distintas.
+
+Veja [resultados e limites da Sprint 1](../docs/evidencias_sprint_1.md).
 
 ---
 
