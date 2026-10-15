@@ -10,6 +10,7 @@ Atualizado em 15/10/2026. Estado: refinamento; implementação cloud ainda não 
 |---|---|
 | Este documento | Escopo, decisões e ordem de implementação. |
 | [Catálogo de requisitos](requisitos_e_regras_mvp.md) | RN, RF, RNF e critérios de aceite; IDs preservados. |
+| [Sprints e histórias](sprints_backend.md) | Backlog executável BE-001–031; dependências, escopo e verificações por tarefa. |
 | [Contrato cloud v1](contrato_cloud_gateway_v1.md) | Payloads e comportamento exigido pelo gateway existente. |
 | [Modelo de dados](modelagem_banco_de_dados.md) | Invariantes que a primeira migration precisa garantir. |
 
@@ -53,6 +54,8 @@ As escolhas abaixo continuam distinguindo confirmado, proposto e pendente. As re
 D02 e D03 são as principais escolhas de produto ainda abertas. D04–D06 e D10 precisam de uma decisão registrada ao implementar política/origem/expiração; são refinamentos delimitados, não motivo para suspender a criação do projeto.
 
 ## 4. Primeira entrega proposta
+
+O recorte abaixo está dividido em histórias nas [sprints 1 e 2](sprints_backend.md#3-sprint-1--fundação-e-operação-administrativa). A ordem das tarefas e seus aceites são mantidos no backlog, sem duplicar contratos aqui.
 
 **Objetivo:** o gateway atual consulta configuração, registra um lance válido e recebe confirmação durável, sem duplicidade e sem acesso cruzado entre empresas.
 

@@ -22,6 +22,7 @@ O [relatório de homologação](docs/homologacao_2026-10-15.md) registra 67 test
 |---|---|
 | [Visão do backend](docs/overview_backend_refinamento.md) | Escopo, decisões pendentes e primeira entrega. Comece aqui. |
 | [Catálogo de requisitos](docs/requisitos_e_regras_mvp.md) | RF, RN, RNF e critérios de aceite; propostas identificadas. |
+| [Sprints e histórias do backend](docs/sprints_backend.md) | Fila BE-001–031, dependências, recortes e verificações para execução por agentes. |
 | [Contrato cloud v1](docs/contrato_cloud_gateway_v1.md) | Integração com o gateway existente. |
 | [Modelo de dados](docs/modelagem_banco_de_dados.md) | Invariantes antes das migrations; sem DDL duplicado. |
 | [Guia do gateway](gateway_captura/README.md) | Configuração, execução e diagnóstico local. |
