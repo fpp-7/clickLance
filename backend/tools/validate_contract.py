@@ -164,4 +164,21 @@ class ContractTests(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    unittest.main(verbosity=2)
+    if len(sys.argv) == 3 and sys.argv[1] == '--capture-profiles':
+        fixtures = json.loads(Path(sys.argv[2]).read_text(encoding='utf-8'))
+        assert fixtures and {item['accepted'] for item in fixtures} == {True, False}
+        ContractTests.setUpClass()
+        contract = ContractTests()
+        for index, item in enumerate(fixtures):
+            envelope = {'version': 'be005-http-fixture', 'active': True, 'settings': item['settings']}
+            try:
+                validate_gateway(envelope)
+                accepted = True
+            except ValueError:
+                accepted = False
+            assert accepted == item['accepted'], f'Gateway divergiu da API no caso {index}'
+            if accepted:
+                contract.validator('CaptureProfile').validate(item['settings'])
+        print(f'{len(fixtures)} perfis HTTP comparados ao validador real do gateway: OK')
+    else:
+        unittest.main(verbosity=2)

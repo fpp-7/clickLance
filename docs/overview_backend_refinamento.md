@@ -1,6 +1,6 @@
 # Backend — visão e decisões
 
-Atualizado em 15/10/2026. Fundação e decisões entregues; BE-003/004 implementam administração e empresas, propostas para revisão no backlog. Configuração/ingestão cloud ainda não implementadas.
+Atualizado em 15/10/2026. Fundação e decisões entregues; BE-003–005 implementam administração, empresas e quadras, propostas para revisão no backlog. Configuração/ingestão cloud ainda não implementadas.
 
 ## 1. Por onde começar
 
@@ -17,6 +17,8 @@ Atualizado em 15/10/2026. Fundação e decisões entregues; BE-003/004 implement
 Quando houver implementação, migrations e OpenAPI versionados no backend serão as referências executáveis de dados e API. Não manter cópias de DDL ou JSON em vários documentos.
 
 ## 2. Escopo do primeiro backend
+
+**Arquitetura confirmada em 15/10/2026:** Model–Controller–Service–Repository, em um único módulo Spring Boot organizado por camada. Os pacotes `model`, `controller`, `service` e `repository` ficam diretamente em `br.com.clicklance`, com pacotes auxiliares para configuração, segurança, erros, validação e comandos operacionais. Responsabilidades e verificações em [arquitetura do backend](arquitetura_backend.md); as decisões de produto, contratos e aceites permanecem válidos.
 
 **Confirmado pelo produto:** piloto gratuito com biblioteca pessoal; pagamentos em fase seguinte.
 

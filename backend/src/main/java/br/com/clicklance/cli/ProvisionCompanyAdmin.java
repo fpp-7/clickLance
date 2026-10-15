@@ -1,4 +1,7 @@
-package br.com.clicklance.identity;
+package br.com.clicklance.cli;
+
+import br.com.clicklance.service.AdminAccountService;
+import br.com.clicklance.service.AdminSessionService;
 
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Profile;
@@ -8,10 +11,10 @@ import org.springframework.stereotype.Component;
 @Component
 @Profile("provision-company-admin")
 public class ProvisionCompanyAdmin implements CommandLineRunner {
-    private final AdminAccounts accounts;
-    private final AdminSessions sessions;
+    private final AdminAccountService accounts;
+    private final AdminSessionService sessions;
     private final Environment env;
-    public ProvisionCompanyAdmin(AdminAccounts accounts, AdminSessions sessions, Environment env) {
+    public ProvisionCompanyAdmin(AdminAccountService accounts, AdminSessionService sessions, Environment env) {
         this.accounts = accounts; this.sessions = sessions; this.env = env;
     }
     @Override public void run(String... args) {

@@ -1,4 +1,4 @@
-package br.com.clicklance.api;
+package br.com.clicklance.exception;
 
 import java.util.List;
 import java.util.Map;

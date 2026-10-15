@@ -1,6 +1,8 @@
 package br.com.clicklance;
 
-import br.com.clicklance.identity.*;
+import br.com.clicklance.security.AdminBearerFilter;
+import br.com.clicklance.service.AdminSessionService;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.CannotGetJdbcConnectionException;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -14,7 +16,7 @@ class AdminBearerFilterTest {
         for (RuntimeException failure : java.util.List.of(
                 new CannotGetJdbcConnectionException("sensitive database detail"),
                 new org.springframework.transaction.CannotCreateTransactionException("sensitive transaction detail"))) {
-        var sessions = mock(AdminSessions.class);
+        var sessions = mock(AdminSessionService.class);
         when(sessions.authenticate("synthetic.token.only")).thenThrow(failure);
         var request = new MockHttpServletRequest("GET", "/api/v1/admin/sessoes/atual");
         request.setServletPath("/api/v1/admin/sessoes/atual");

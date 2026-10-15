@@ -1,4 +1,6 @@
-package br.com.clicklance.identity;
+package br.com.clicklance.cli;
+
+import br.com.clicklance.service.AdminAccountService;
 
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Profile;
@@ -8,9 +10,9 @@ import org.springframework.stereotype.Component;
 @Component
 @Profile("bootstrap-admin")
 public class BootstrapAdmin implements CommandLineRunner {
-    private final AdminAccounts accounts;
+    private final AdminAccountService accounts;
     private final Environment env;
-    public BootstrapAdmin(AdminAccounts accounts, Environment env) { this.accounts = accounts; this.env = env; }
+    public BootstrapAdmin(AdminAccountService accounts, Environment env) { this.accounts = accounts; this.env = env; }
     @Override public void run(String... args) {
         String email = env.getProperty("BOOTSTRAP_ADMIN_EMAIL", "");
         String password = env.getProperty("BOOTSTRAP_ADMIN_PASSWORD", "");

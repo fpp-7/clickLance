@@ -1,5 +1,9 @@
 package br.com.clicklance;
 
+import br.com.clicklance.service.AdminAccountService;
+import br.com.clicklance.security.AdminJwt;
+import br.com.clicklance.service.AdminSessionService;
+
 import java.net.URI;
 import java.net.http.*;
 import java.nio.file.*;
@@ -18,7 +22,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import tools.jackson.databind.json.JsonMapper;
-import br.com.clicklance.identity.*;
 
 abstract class AdminTestSupport {
     static final String PASSWORD = "test-fixture-only-" + UUID.randomUUID();
@@ -66,8 +69,8 @@ abstract class AdminTestSupport {
 
     @Autowired JdbcTemplate jdbc;
     @Autowired Environment environment;
-    @Autowired AdminAccounts accounts;
-    @Autowired AdminSessions sessions;
+    @Autowired AdminAccountService accounts;
+    @Autowired AdminSessionService sessions;
     @Autowired AdminJwt jwt;
     @Autowired org.springframework.context.ApplicationContext context;
     final List<UUID> users = new ArrayList<>();

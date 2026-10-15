@@ -1,7 +1,10 @@
-package br.com.clicklance.identity;
+package br.com.clicklance.config;
+
+import br.com.clicklance.security.AdminBearerFilter;
+import br.com.clicklance.service.AdminSessionService;
+import br.com.clicklance.exception.ApiErrors;
 
 import jakarta.servlet.DispatcherType;
-import br.com.clicklance.api.ApiErrors;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,7 +19,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class AdminSecurity {
     @Bean
-    SecurityFilterChain administrativeSecurity(HttpSecurity http, AdminSessions sessions) throws Exception {
+    SecurityFilterChain administrativeSecurity(HttpSecurity http, AdminSessionService sessions) throws Exception {
         return http.csrf(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable).formLogin(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable).requestCache(AbstractHttpConfigurer::disable)

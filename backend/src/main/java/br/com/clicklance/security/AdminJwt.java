@@ -1,4 +1,6 @@
-package br.com.clicklance.identity;
+package br.com.clicklance.security;
+
+import br.com.clicklance.exception.ApiException;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -14,7 +16,6 @@ import java.util.List;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
-import br.com.clicklance.api.ApiException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2Error;

@@ -1,8 +1,9 @@
 # ClickLance Backend
 
-Aplicação modular Maven, pacote raiz `br.com.clicklance`. Inclui a fundação,
-sessões administrativas e cadastro/consulta de empresas (BE-001–004).
-Quadras, dispositivos e integração cloud continuam nas histórias seguintes.
+Aplicação Spring Boot em um único módulo Maven, pacote raiz `br.com.clicklance`,
+com arquitetura **Model–Controller–Service–Repository**, organizada por camada. Inclui a fundação,
+sessões administrativas e cadastro/consulta de empresas e quadras (BE-001–005).
+Dispositivos e integração cloud continuam nas histórias seguintes.
 
 ## Base técnica fixada
 
@@ -24,8 +25,26 @@ Fontes: [requisitos Spring Boot](https://docs.spring.io/spring-boot/system-requi
 
 ## Estrutura
 
+Os pacotes `model`, `controller`, `service` e `repository` ficam diretamente
+em `br.com.clicklance`, com as classes de todas as funcionalidades em cada camada.
+Models representam os dados; controllers adaptam HTTP; services aplicam regras,
+autorização e transações; repositories executam SQL e mapeiam resultados.
+O guia está em [arquitetura do backend](../docs/arquitetura_backend.md).
+`BackendArchitectureTest` verifica os pacotes das camadas, a independência dos
+models e as dependências permitidas entre controllers, services e repositories.
+
 ```text
-src/main/java/br/com/clicklance/  aplicação, api, identity e company
+src/main/java/br/com/clicklance/
+  ClickLanceApplication.java     ponto de entrada Spring Boot
+  model/                        Company, Court, CaptureProfile, AdminUser
+  controller/                   controllers HTTP de sessões, empresas e quadras
+  service/                      regras, autorização e transações
+  repository/                   SQL/JDBC e mapeamento de persistência
+  config/                       configuração Spring e segurança HTTP
+  security/                     JWT, filtro, principal e validação de senhas
+  exception/                    erros padronizados e tratamento HTTP
+  validation/                   validações compartilhadas de entrada
+  cli/                          bootstrap e provisionamento operacional
 src/main/resources/             configuração e db/migration (fonte executável do schema)
 src/test/java/br/com/clicklance/ testes unitários e integração PostgreSQL/HTTP *IT
 .mvn/wrapper/                   versão e checksum da distribuição Maven
@@ -155,7 +174,7 @@ da revisão e integração, conforme o guia do agente.
 ## Contratos do primeiro recorte (BE-002)
 
 [`openapi.yaml`](openapi.yaml) é a fonte dos schemas, rotas e erros planejados
-para administração e integração v1. Operações BE-003/004 estão implementadas;
+para administração e integração v1. Operações BE-003–005 estão implementadas;
 as demais continuam planejadas, sem endpoints disponíveis. Decisões de produto, autorização, bootstrap, sessão e estratégia de
 verificação de objetos estão na [visão do backend](../docs/overview_backend_refinamento.md).
 BE-002 não alterou o gateway nem acrescentou migrations de domínio.
@@ -303,8 +322,42 @@ dedicado. `verify` sem o perfil executa os testes unitários, mas não os `*IT`.
 Os relatórios estão em `target/surefire-reports/` e `target/failsafe-reports/`.
 
 O [backlog](../docs/sprints_backend.md) registra resultados e estado de revisão.
-Não há frontend, contas de jogadores, cadastros de quadras/dispositivos, auditoria
+Não há frontend, contas de jogadores, cadastro de dispositivos, auditoria
 BE-007 ou integração AWS neste recorte. TLS de produção, Docker Compose e
 implantação real não foram homologados. Os códigos 429 planejados na OpenAPI
 não significam que um limitador distribuído já foi entregue. Referência técnica:
 [validação JWT no Spring Security](https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/jwt.html).
+
+## Quadras e perfil inicial (BE-005)
+
+Criação e listagem usam `/api/v1/admin/empresas/{empresa_id}/quadras`; consulta
+individual acrescenta `/{quadra_id}`. Requerem Bearer de plataforma ou vínculo
+administrativo ativo com a empresa do caminho. Use os schemas `QuadraCreate`,
+`Quadra` e `CaptureProfile` da OpenAPI como fonte dos campos e exemplos.
+
+Fuso é obrigatório e deve pertencer aos IDs disponíveis na base de fusos do JDK;
+não aceita offset fixo nem usa implicitamente o fuso do servidor. A janela antes
+e depois aceita números fracionários dentro dos limites do gateway, enquanto
+segmentação e keyframes exigem inteiros JSON. Não se deduz janela pela quantidade
+de segmentos. Perfil incompleto, campos extras ou URL de câmera no cadastro
+geram 422, sem registro parcial ou reprodução do valor sensível no erro.
+
+Listagem usa `page`/`size`, ordenação por ID e contagem da empresa autorizada.
+Empresa de outro tenant gera 403; quadra fora da empresa autorizada do caminho
+gera 404. Operações administrativas em empresa inativa não habilitam captura.
+V4 acrescenta a FK da quadra e constraints do perfil, além da proteção contra
+transferência de empresa conforme D10. Consultas retornam apenas os campos do
+cadastro e o perfil; publicação de configuração de câmera pertence a BE-008.
+
+Com PostgreSQL de teste configurado, execute nesta pasta:
+
+```powershell
+.\mvnw.cmd -B -ntp -Pintegration '-Ddebug=false' verify
+.\.venv\Scripts\python.exe -X utf8 tools/validate_contract.py
+.\.venv\Scripts\python.exe -X utf8 tools/validate_contract.py --capture-profiles target/be005-capture-profiles.json
+```
+
+O último comando depende das ferramentas Python já descritas e do arquivo gerado
+por `CourtIT`. Compara perfis efetivamente aceitos/rejeitados por HTTP ao validador
+real do gateway, incluindo bordas, frações e inteiros lexicais. Não altera o
+gateway nem exige câmera. Os resultados e limites ficam na ficha BE-005 do backlog.

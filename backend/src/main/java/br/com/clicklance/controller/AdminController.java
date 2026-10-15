@@ -1,17 +1,20 @@
-package br.com.clicklance.identity;
+package br.com.clicklance.controller;
+
+import br.com.clicklance.security.AdminPrincipal;
+import br.com.clicklance.service.AdminSessionService;
+import br.com.clicklance.validation.Input;
 
 import java.util.Map;
 import java.util.Set;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import br.com.clicklance.api.Input;
 
 @RestController
 @RequestMapping("/api/v1/admin/sessoes")
 public class AdminController {
-    private final AdminSessions sessions;
-    public AdminController(AdminSessions sessions) { this.sessions = sessions; }
+    private final AdminSessionService sessions;
+    public AdminController(AdminSessionService sessions) { this.sessions = sessions; }
 
     @PostMapping
     ResponseEntity<Map<String, Object>> login(@RequestBody Map<String, Object> body) {

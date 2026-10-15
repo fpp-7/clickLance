@@ -1,5 +1,7 @@
 package br.com.clicklance;
 
+import br.com.clicklance.exception.ApiException;
+
 import java.util.*;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -141,6 +143,6 @@ class CompanyIT extends AdminTestSupport {
         assertThat(jdbc.queryForObject("SELECT password_hash FROM app_user WHERE id=?", String.class, created)).isEqualTo(hash);
         var otherOperator = sessions.authenticate(token(tenant));
         assertThatThrownBy(() -> accounts.provisionCompanyAdmin(otherOperator, email, PASSWORD, id))
-                .isInstanceOf(br.com.clicklance.api.ApiException.class).extracting("status").isEqualTo(403);
+                .isInstanceOf(br.com.clicklance.exception.ApiException.class).extracting("status").isEqualTo(403);
     }
 }

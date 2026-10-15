@@ -22,6 +22,11 @@ Escolhas técnicas rotineiras dentro do recorte podem ser resolvidas com justifi
 
 ## Limites de implementação
 
+- A arquitetura obrigatória é **Model–Controller–Service–Repository**, em um único módulo Maven Spring Boot, com pacotes por camada diretamente em `br.com.clicklance`: `model`, `controller`, `service` e `repository`. Classes de todas as funcionalidades ficam nesses pacotes; não recriar a organização anterior por `identity`, `company` ou `court`. Consulte `../docs/arquitetura_backend.md` antes de implementar ou refatorar.
+- Use `config` para beans/configuração Spring, `security` para JWT/filtros/principal/senhas, `exception` para erros e seu tratamento HTTP, `validation` para validações compartilhadas e `cli` para comandos operacionais. Models representam os dados e não dependem de controllers, services, repositories, configuração ou infraestrutura Spring.
+- Controllers adaptam HTTP e chamam services; não acessam repositories. Services concentram regras, autorização e limites de transação. Repositories concentram SQL/JDBC e mapeamento de persistência; não chamam services ou controllers. Use injeção por construtor e sufixos `Controller`, `Service` e `Repository` para essas classes.
+- Não introduzir módulos `domain/application/infrastructure`, ports ou interactors de Clean Architecture sem uma nova decisão explícita. Essa orientação substitui a proposta anterior de Clean Architecture. Preserve contratos e migrations nas refatorações; mantenha as verificações arquiteturais aprovadas.
+
 - Alterações funcionais ficam em `backend/` e nas referências estritamente necessárias da história. Não alterar firmware/gateway para fazer a API parecer compatível. BE-028 é o recorte explícito de extensão funcional do gateway e deve ser executado a partir das instruções aplicáveis àquela pasta.
 - Use a stack prevista (Java/Spring Boot, PostgreSQL e Flyway). BE-001 fixa versões, Maven Wrapper, pacote raiz e procedimento local; tarefas seguintes reutilizam essa base.
 - Prefira módulos no mesmo backend. Não introduzir microserviços, broker, provedor de identidade ou outra plataforma sem necessidade da história e decisão técnica registrada.

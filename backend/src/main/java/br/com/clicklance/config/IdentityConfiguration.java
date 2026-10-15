@@ -1,4 +1,4 @@
-package br.com.clicklance.identity;
+package br.com.clicklance.config;
 
 import java.time.Clock;
 import org.springframework.context.annotation.Bean;

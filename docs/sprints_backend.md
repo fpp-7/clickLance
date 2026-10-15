@@ -1,12 +1,16 @@
 # Backend — sprints e histórias de implementação
 
-Atualizado em 15/10/2026. BE-001–004 entregues para revisão; BE-005 em diante aguardam as dependências correspondentes. Piloto gratuito com biblioteca, pagamentos depois.
+Atualizado em 15/10/2026. BE-001–005 entregues para revisão; BE-006 em diante aguardam as dependências correspondentes. Piloto gratuito com biblioteca, pagamentos depois.
 
 Este é o único backlog do backend. As histórias referenciam o [catálogo de requisitos](requisitos_e_regras_mvp.md), as [decisões D01–D14](overview_backend_refinamento.md#3-o-que-falta-e-quando-precisa-estar-resolvido), as [diretrizes de dados](modelagem_banco_de_dados.md) e o [contrato cloud v1](contrato_cloud_gateway_v1.md). Não copiar payloads ou DDL para este arquivo. Os IDs `US-01–12` do catálogo são referências anteriores; os IDs executáveis deste plano são `BE-001–031`.
 
 ## 1. Como executar com agentes
 
 Uma história por tarefa. Escolher a primeira elegível na ordem abaixo; concluir dependências antes de iniciar a implementação. As sprints são agrupamentos por resultado, sem compromisso de calendário ou velocidade por modelo.
+
+**Arquitetura adotada:** [Model–Controller–Service–Repository](arquitetura_backend.md), em um único módulo Spring Boot, com pacotes por camada diretamente em `br.com.clicklance`: `model`, `controller`, `service` e `repository`, além dos auxiliares `config`, `security`, `exception`, `validation` e `cli`. Aplica-se a todas as histórias: dados nos models, HTTP nos controllers, regras/autorização/transações nos services e SQL nos repositories. Os objetivos, dependências e aceites funcionais permanecem válidos; não é necessário reescrever as fichas para essa separação técnica.
+
+**Adequação técnica BE-001–005 (15/10/2026), para revisão:** todo o código Java foi reorganizado por camada; contratos e migrations preservados. `clean verify` com perfil `integration` aprovou 22 testes PostgreSQL/HTTP e 12 verificações unitárias/arquiteturais; 10 verificações de contrato e 31 perfis HTTP contra o gateway aprovados. JAR inspecionado sem classes nos pacotes antigos. Evidências em `backend/target/layers-verification.log` e no [guia de arquitetura](arquitetura_backend.md). BE-006 permanece como próximo recorte.
 
 | Estado | Critério |
 |---|---|
@@ -17,7 +21,7 @@ Uma história por tarefa. Escolher a primeira elegível na ordem abaixo; conclui
 | Em revisão | Implementação e verificações disponíveis para revisão. |
 | Concluída | Aceites e verificações passaram; resultado revisado e integrado. |
 
-**Fila atual:** BE-001/002 continuam como base entregue para revisão; BE-003/004 foram executadas sequencialmente por solicitação explícita do responsável, sobre essa base presente no workspace, e estão em revisão com as evidências nas fichas abaixo. BE-005 é o próximo recorte de implementação após revisão/integração das dependências. As demais histórias aguardam implementações e decisões ainda abertas quando indicadas. Não criar endpoints fictícios, bypass de autorização ou políticas silenciosas para declarar uma história concluída.
+**Fila atual:** BE-001–004 continuam como base entregue para revisão; BE-005 foi implementada sobre essa base por solicitação de continuidade e está em revisão com as evidências abaixo. BE-006 é o próximo recorte de implementação após revisão/integração das dependências. As demais histórias aguardam implementações e decisões ainda abertas quando indicadas. Não criar endpoints fictícios, bypass de autorização ou políticas silenciosas para declarar uma história concluída.
 
 Cada ficha abaixo define **objetivo**, **dependências/decisões**, **escopo**, **aceite**, **verificação** e **referências**. Os caminhos são relativos à raiz do repositório. A estrutura interna de pacotes e os comandos serão fixados em BE-001; fichas seguintes referem-se a módulos lógicos, sem impor arquivos ainda inexistentes.
 
@@ -79,7 +83,7 @@ Sprints posteriores permanecem condicionadas às decisões indicadas. A autoriza
 
 - **Objetivo:** como operador, administrar somente os recursos permitidos à minha identidade.
 - **Depende de:** BE-001 e recorte de autenticação/papéis/sessão de BE-002 resolvido.
-- **Estado atual:** em revisão (15/10/2026). JWT RS256 de 60 minutos com sessão durável, hash de jti, revogação, consulta de usuário/vínculos a cada requisição, BCrypt, bootstrap explícito e provisionamento operacional de administrador de empresa implementados em `backend/src/main/java/br/com/clicklance/identity`; migrations V2/V3 sem alterar V1. Nenhum cadastro público ou senha padrão.
+- **Estado atual:** em revisão (15/10/2026). JWT RS256 de 60 minutos com sessão durável, hash de jti, revogação, consulta de usuário/vínculos a cada requisição, BCrypt, bootstrap explícito e provisionamento operacional de administrador de empresa implementados nas camadas `controller`, `service`, `repository` e `model`, com auxiliares em `security`, `config` e `cli`; migrations V2/V3 sem alterar V1. Nenhum cadastro público ou senha padrão.
 - **Evidências:** 7 testes `AdministrativeIdentityIT` aprovados em PostgreSQL/HTTP reais: login/logout, expiração exata, inativação, token adulterado/algoritmo/issuer/audience/sessão inválidos, limite de senha e bootstrap concorrente/idempotente. Teste unitário cobre falha de conexão e de abertura da transação com 503 e sem acesso. Teste de fundação confirma ausência de chaves sem criação de privilégio. JAR executado no perfil bootstrap recusou segredo ausente e aprovou criação/repetição com senha ausente dos logs capturados. Gerador RSA criou o par e recusou sobrescrita.
 - **Escopo:** módulos de identidade/autorização, migrations de papel/vínculo, bootstrap controlado de administrador global e contrato administrativo definido em BE-002. Reutilizar a identidade para jogadores depois, sem cadastro público de administradores.
 - **Aceite:** visitante não administra; administrador de empresa A não obtém poderes em B; cadastro comum não eleva papel; credenciais/sessões inválidas, expiradas ou de identidade inativa seguem a política definida. Bootstrap repetido não cria administradores duplicados nem usa senha padrão de produção.
@@ -104,6 +108,8 @@ Sprints posteriores permanecem condicionadas às decisões indicadas. A autoriza
 
 - **Objetivo:** como administrador da empresa, cadastrar a origem dos lances e o fuso da quadra.
 - **Depende de:** BE-004; perfil/validações de BE-002.
+- **Estado atual:** em revisão (15/10/2026). `controller/CourtController`, `service/CourtService`, `repository/CourtRepository` e os models `Court`/`CaptureProfile`, sob `backend/src/main/java/br/com/clicklance`, entregam criação/listagem/consulta por empresa autorizada, ID estável, fuso IANA explícito e perfil inicial com janela antes/depois independente da segmentação. V4 acrescenta FK, limites e proteção de origem contra transferência entre empresas. Nenhuma publicação de configuração ou funcionalidade BE-006 foi antecipada.
+- **Evidências:** `mvnw.cmd -B -ntp -Pintegration '-Ddebug=false' verify`, em `backend/`, aprovou build, 22 testes de integração e 1 unitário, sem ignorados. Os 6 testes `CourtIT` cobrem tenant A/B, pai contraditório, empresa ausente sem órfão, perfil/fuso inválidos sem escrita parcial, paginação e constraints PostgreSQL reais (incluindo NaN/infinito e transferência de origem). `backend/.venv/Scripts/python.exe -X utf8 backend/tools/validate_contract.py` (raiz) aprovou 10 verificações; o mesmo script com `--capture-profiles backend/target/be005-capture-profiles.json` confirmou 31 perfis efetivamente aceitos/rejeitados por HTTP contra o validador real do gateway. Logs em `backend/target/be005-verification.log`; PostgreSQL 17.11 temporário em loopback, V3→V4 aplicada e reinicialização sem reaplicação verificadas. Não houve mudança no gateway, teste de câmera, AWS, Docker ou deploy nesta história.
 - **Escopo:** quadra vinculada à empresa, fuso IANA efetivo, perfil de captura, criação e consulta administrativa. Persistir campos necessários à configuração v1, sem gerar nova interpretação de janela por quantidade de segmentos.
 - **Aceite:** empresa A não cadastra quadra em B; empresa inexistente não gera órfão; fuso inválido e parâmetros fora do domínio são recusados; perfil distingue janela antes/depois de segmentação. Dados sensíveis da câmera não aparecem em consultas genéricas.
 - **Verificação:** isolamento cruzado, constraints de relacionamento e valores aceitos/rejeitados pelo validador do gateway.

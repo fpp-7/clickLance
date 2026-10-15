@@ -1,8 +1,11 @@
-package br.com.clicklance.company;
+package br.com.clicklance.controller;
+
+import br.com.clicklance.security.AdminPrincipal;
+import br.com.clicklance.model.Company;
+import br.com.clicklance.service.CompanyService;
+import br.com.clicklance.validation.Input;
 
 import java.util.Map;
-import br.com.clicklance.api.Input;
-import br.com.clicklance.identity.AdminPrincipal;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;

@@ -1,4 +1,6 @@
-package br.com.clicklance.api;
+package br.com.clicklance.validation;
+
+import br.com.clicklance.exception.ApiException;
 
 import java.util.List;
 import java.util.Map;
@@ -33,5 +35,21 @@ public final class Input {
 
     public static void invalid(String field, String code) {
         throw new ApiException(422, "VALIDATION_FAILED", List.of(Map.of("field", field, "code", code)));
+    }
+
+    public static double number(Object value, String name, double min, double max) {
+        if (!(value instanceof Number) || !Double.isFinite(((Number) value).doubleValue())
+                || ((Number) value).doubleValue() < min || ((Number) value).doubleValue() > max) {
+            invalid(name, "OUT_OF_RANGE");
+        }
+        return ((Number) value).doubleValue();
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> object(Map<String, Object> body, String name) {
+        if (!(body.get(name) instanceof Map<?, ?> map) || !map.keySet().stream().allMatch(String.class::isInstance)) {
+            invalid(name, "INVALID_FORMAT");
+        }
+        return (Map<String, Object>) body.get(name);
     }
 }

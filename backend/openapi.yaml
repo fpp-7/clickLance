@@ -1,9 +1,9 @@
 openapi: 3.1.0
 info:
   title: ClickLance — contratos do primeiro recorte
-  version: 0.3.0
+  version: 0.4.0
   description: >-
-    Contratos BE-002. BE-003/004 implementam sessão administrativa e empresas;
+    Contratos BE-002. BE-003–005 implementam sessão administrativa, empresas e quadras;
     demais operações são planejadas e ainda não estão disponíveis.
     Decisões e autorização em docs/overview_backend_refinamento.md.
     Configuração/ingestão preservam o contrato cloud v1 e o cliente existente.
@@ -148,6 +148,7 @@ paths:
       tags: [Administração]
       operationId: criarQuadra
       x-story: BE-005
+      x-implementation-status: implemented
       summary: Criar quadra na empresa autorizada
       requestBody:
         required: true
@@ -170,6 +171,7 @@ paths:
       tags: [Administração]
       operationId: listarQuadras
       x-story: BE-005
+      x-implementation-status: implemented
       summary: Listar quadras da empresa autorizada por ID
       parameters:
         - {$ref: '#/components/parameters/Page'}
@@ -194,6 +196,7 @@ paths:
       tags: [Administração]
       operationId: consultarQuadra
       x-story: BE-005
+      x-implementation-status: implemented
       summary: Consultar quadra, conferindo empresa do caminho
       responses:
         '200':
@@ -566,6 +569,10 @@ components:
     CaptureProfile:
       type: object
       additionalProperties: false
+      description: >-
+        Janela antes/depois independente da segmentacao. Campos inteiros exigem
+        token JSON inteiro, sem coercao de 1.0, string ou booleano. Valores
+        numericos devem ser finitos; limites correspondem ao gateway v1.
       required: [REPLAY_BEFORE_SECONDS, REPLAY_AFTER_SECONDS, SEGMENT_DURATION_SECONDS, KEYFRAME_INTERVAL]
       properties:
         REPLAY_BEFORE_SECONDS: {type: number, minimum: 1, maximum: 600}

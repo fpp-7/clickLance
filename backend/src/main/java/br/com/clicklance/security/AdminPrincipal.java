@@ -1,8 +1,9 @@
-package br.com.clicklance.identity;
+package br.com.clicklance.security;
+
+import br.com.clicklance.exception.ApiException;
 
 import java.util.Set;
 import java.util.UUID;
-import br.com.clicklance.api.ApiException;
 
 public record AdminPrincipal(UUID userId, String email, boolean platformAdmin, Set<String> empresaIds, String sessionHash) {
     public AdminPrincipal { empresaIds = Set.copyOf(empresaIds); }

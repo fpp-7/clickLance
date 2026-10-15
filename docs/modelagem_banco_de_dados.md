@@ -1,6 +1,6 @@
 # Backend — diretrizes do modelo de dados
 
-Atualizado em 15/10/2026. V1 é fundação técnica; V2 implementa identidade/sessão/vínculo administrativo e V3 implementa empresa e a FK do vínculo. As migrations em `backend/src/main/resources/db/migration/` são a fonte executável desses recortes. Quadras, dispositivos e replays ainda não têm schema implementado. As decisões seguem BE-002 e seus schemas OpenAPI.
+Atualizado em 15/10/2026. V1 é fundação técnica; V2 implementa identidade/sessão/vínculo administrativo, V3 implementa empresa e a FK do vínculo e V4 implementa quadra, perfil inicial e proteção contra transferência de empresa. As migrations em `backend/src/main/resources/db/migration/` são a fonte executável desses recortes. Dispositivos e replays ainda não têm schema implementado. As decisões seguem BE-002 e seus schemas OpenAPI.
 
 Os comportamentos estão no [catálogo de requisitos](requisitos_e_regras_mvp.md) e as escolhas abertas na [visão do backend](overview_backend_refinamento.md). Este documento contém apenas os invariantes do modelo.
 

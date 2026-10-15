@@ -1,8 +1,9 @@
-package br.com.clicklance.identity;
+package br.com.clicklance.security;
+
+import br.com.clicklance.validation.Input;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
-import br.com.clicklance.api.Input;
 
 public final class AdminPasswords {
     private AdminPasswords() {}

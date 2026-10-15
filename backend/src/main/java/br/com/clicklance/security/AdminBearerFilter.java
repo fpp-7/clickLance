@@ -1,4 +1,8 @@
-package br.com.clicklance.identity;
+package br.com.clicklance.security;
+
+import br.com.clicklance.service.AdminSessionService;
+import br.com.clicklance.exception.ApiErrors;
+import br.com.clicklance.exception.ApiException;
 
 import java.io.IOException;
 import java.util.List;
@@ -6,8 +10,6 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import br.com.clicklance.api.ApiException;
-import br.com.clicklance.api.ApiErrors;
 import org.springframework.dao.DataAccessException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -15,8 +17,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.transaction.TransactionException;
 
 public final class AdminBearerFilter extends OncePerRequestFilter {
-    private final AdminSessions sessions;
-    public AdminBearerFilter(AdminSessions sessions) { this.sessions = sessions; }
+    private final AdminSessionService sessions;
+    public AdminBearerFilter(AdminSessionService sessions) { this.sessions = sessions; }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {

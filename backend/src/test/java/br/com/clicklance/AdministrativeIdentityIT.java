@@ -1,11 +1,14 @@
 package br.com.clicklance;
 
+import br.com.clicklance.service.AdminSessionService;
+import br.com.clicklance.exception.ApiException;
+import br.com.clicklance.cli.BootstrapAdmin;
+
 import java.util.*;
 import java.util.concurrent.*;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
-import br.com.clicklance.api.ApiException;
 import static org.assertj.core.api.Assertions.*;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -25,7 +28,7 @@ class AdministrativeIdentityIT extends AdminTestSupport {
         var claims = jwt.decode(token);
         assertThat(claims.getExpiresAt()).isEqualTo(claims.getIssuedAt().plusSeconds(3600));
         assertThat(jdbc.queryForObject("SELECT jti_hash FROM admin_session WHERE user_id=?", String.class, id))
-                .isEqualTo(br.com.clicklance.identity.AdminSessions.hash(claims.getId())).doesNotContain(claims.getId());
+                .isEqualTo(br.com.clicklance.service.AdminSessionService.hash(claims.getId())).doesNotContain(claims.getId());
         var current = request("GET", CURRENT, token, null);
         assertThat(current.statusCode()).isEqualTo(200);
         assertThat(body(current)).containsEntry("usuario_id", id.toString()).containsEntry("platform_admin", true);
@@ -105,7 +108,7 @@ class AdministrativeIdentityIT extends AdminTestSupport {
 
     @Test void normalStartupDoesNotProvisionAnImplicitAdministrator() {
         assertThat(environment.getActiveProfiles()).doesNotContain("bootstrap-admin");
-        assertThat(context.getBeansOfType(br.com.clicklance.identity.BootstrapAdmin.class)).isEmpty();
+        assertThat(context.getBeansOfType(br.com.clicklance.cli.BootstrapAdmin.class)).isEmpty();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM app_user WHERE email='admin'", Integer.class)).isZero();
     }
 
