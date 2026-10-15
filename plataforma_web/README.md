@@ -104,11 +104,15 @@ favoritos e solicitações comerciais. São propostas do frontend, **não contra
 já implementados no backend**. A fonte dos contratos é a
 [OpenAPI do backend](../backend/openapi.yaml).
 
-O backend atual oferece sessões administrativas e empresas em
+O backend atual oferece sessões administrativas, empresas e quadras em
 `/api/v1/admin/...`; este cliente ainda não implementa esse fluxo. Mudar apenas
 o modo e a URL base não torna os projetos compatíveis. É preciso alinhar
 caminhos, schemas, paginação, autenticação e erros no adaptador.
 Não alterar o backend para atender silenciosamente a rotas provisórias do mock.
+
+A organização Java por `model`, `controller`, `service` e `repository` está no
+[guia de arquitetura](../docs/arquitetura_backend.md). Essa separação interna
+preserva os caminhos e payloads HTTP; o cliente continua seguindo a OpenAPI.
 
 A integração do jogador depende das histórias BE-013–021 e das decisões
 aplicáveis. O tipo `Partida` representa faixas horárias no protótipo; não cria

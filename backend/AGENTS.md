@@ -7,6 +7,7 @@
 - Decisões D01–D14 e seu estado estão em `../docs/overview_backend_refinamento.md`.
 - Integração existente está em `../docs/contrato_cloud_gateway_v1.md`.
 - Invariantes do schema estão em `../docs/modelagem_banco_de_dados.md`.
+- Organização por camada e responsabilidades estão em `../docs/arquitetura_backend.md`; comandos locais em `README.md`.
 - O primeiro backend é um piloto gratuito com biblioteca. Pagamentos ficam fora.
 
 ## Ao receber uma história
@@ -14,7 +15,7 @@
 1. Leia a ficha BE-XXX e suas referências; confira o estado das dependências e decisões.
 2. Inspecione o código existente antes de criar componentes; não presuma que o plano já foi implementado.
 3. Execute somente o recorte atribuído. Se faltar decisão de produto, indique qual Dxx e prossiga apenas com trabalho independente dela. Não invente política para passar no teste.
-4. Siga a estrutura e os comandos fixados em BE-001. Enquanto ela não existir, não presuma versões ou comandos disponíveis.
+4. Reutilize as versões e os comandos fixados em BE-001 e a organização por camada registrada no guia de arquitetura. Confira o README antes de executar os comandos.
 5. Verifique os aceites relevantes, com casos negativos/falhas quando exigidos. Teste de banco concorrente ou constraint de PostgreSQL deve exercitar PostgreSQL real.
 6. Entregue resumo do resultado, arquivos alterados, comandos/resultados, limitações e dependências ainda abertas. Proponha a história para revisão; não declare homologação real com simuladores.
 
@@ -29,7 +30,7 @@ Escolhas técnicas rotineiras dentro do recorte podem ser resolvidas com justifi
 
 - Alterações funcionais ficam em `backend/` e nas referências estritamente necessárias da história. Não alterar firmware/gateway para fazer a API parecer compatível. BE-028 é o recorte explícito de extensão funcional do gateway e deve ser executado a partir das instruções aplicáveis àquela pasta.
 - Use a stack prevista (Java/Spring Boot, PostgreSQL e Flyway). BE-001 fixa versões, Maven Wrapper, pacote raiz e procedimento local; tarefas seguintes reutilizam essa base.
-- Prefira módulos no mesmo backend. Não introduzir microserviços, broker, provedor de identidade ou outra plataforma sem necessidade da história e decisão técnica registrada.
+- Mantenha as funcionalidades no mesmo módulo Maven, nos pacotes por camada definidos acima. Não introduzir microserviços, broker, provedor de identidade ou outra plataforma sem necessidade da história e decisão técnica registrada.
 - Não manter SQL/JSON concorrentes em documentos: migrations e OpenAPI do backend serão as fontes executáveis; contrato v1 continua obrigatório para o gateway.
 - Nunca versionar senhas, tokens, credenciais AWS, URLs de câmera autenticadas ou configuração local real.
 - Identidade autenticada e autorização por empresa são verificações distintas. UUID conhecido não concede acesso.

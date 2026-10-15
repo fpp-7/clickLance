@@ -5,6 +5,10 @@ com arquitetura **Model–Controller–Service–Repository**, organizada por ca
 sessões administrativas e cadastro/consulta de empresas e quadras (BE-001–005).
 Dispositivos e integração cloud continuam nas histórias seguintes.
 
+Referências: [arquitetura e pacotes](../docs/arquitetura_backend.md),
+[guia do agente](AGENTS.md), [backlog e estado de revisão](../docs/sprints_backend.md)
+e [contrato OpenAPI](openapi.yaml).
+
 ## Base técnica fixada
 
 | Componente | Versão / escolha |
@@ -100,8 +104,9 @@ preserva dados. Não remova volumes para resolver erro de migration. Alterar
 Crie um usuário e banco locais dedicados e informe `DB_HOST`, `DB_PORT`,
 `DB_NAME`, `DB_USER` e `DB_PASSWORD` no `.env` ou no ambiente. O usuário precisa
 de permissão para migrations no schema. A aplicação não cria o banco nem seu
-usuário; Flyway cria sua tabela de histórico e executa a migration técnica V1.
-Reiniciar valida o histórico sem reaplicar V1. Não há H2 nem fallback em memória.
+usuário; Flyway cria sua tabela de histórico e executa as migrations pendentes
+de V1 a V4. Reiniciar valida o histórico sem reaplicar migrations já executadas.
+Não há H2 nem fallback em memória.
 
 ## Verificação com banco real
 
@@ -112,9 +117,7 @@ Reiniciar valida o histórico sem reaplicar V1. Não há H2 nem fallback em mem�
 # Para os valores de usuário do exemplo; ajuste se o usuário local for outro.
 docker compose exec postgres createdb -U clicklance clicklance_test
 $env:DB_NAME = 'clicklance_test'
-.\mvnw.cmd -B -ntp -Pintegration verify
-# Segunda inicialização: mesmo banco, mesma instalação e apenas uma V1.
-.\mvnw.cmd -B -ntp -Pintegration verify
+.\mvnw.cmd -B -ntp -Pintegration '-Ddebug=false' verify
 Remove-Item Env:DB_NAME
 ```
 
@@ -123,9 +126,19 @@ banco de teste já existe, não repita `createdb`. Nunca aponte os testes para u
 banco compartilhado ou de produção. O perfil falha quando PostgreSQL está
 indisponível; não ignora testes nem substitui o banco por um simulador.
 
-Os testes verificam aplicação HTTP real, saúde mínima, ausência de rotas de
-negócio/configuração e persistência da migration sem reaplicação. A V1 contém
-somente o marco técnico `backend_installation`, sem políticas ou entidades futuras.
+Os testes de integração verificam saúde mínima, proteção de rotas, sessões,
+autorização por empresa, cadastros de empresas/quadras, paginação, constraints e
+concorrência de provisionamento. Flyway é validado sem reaplicação. V1 contém o
+marco técnico `backend_installation`; V2–V4 acrescentam identidade, empresa e quadra.
+
+Para conferir somente a arquitetura, sem banco, execute nesta pasta:
+
+```powershell
+.\mvnw.cmd -B -ntp '-Dtest=BackendArchitectureTest' test
+```
+
+Esse comando verifica 11 regras de dependência, nomenclatura, localização dos
+pacotes e independência dos models. Não substitui a suíte PostgreSQL/HTTP.
 
 ### Diagnóstico de inicialização
 
@@ -142,9 +155,30 @@ somente o marco técnico `backend_installation`, sem políticas ou entidades fut
 Erros de banco impedem o startup via Flyway; uma aplicação sem conexão válida
 não é apresentada como pronta. Não inclua senhas em URLs JDBC, comandos ou logs.
 
-## Estado e evidências
+## Estado e evidências atuais
 
-**BE-001 proposta para revisão em 15/10/2026.**
+BE-001–005 e a reorganização por camada estão disponíveis para revisão.
+O próximo recorte é BE-006, conforme o [backlog](../docs/sprints_backend.md).
+
+| Verificação da reorganização em 15/10/2026 | Resultado |
+|---|---|
+| `mvnw.cmd -B -ntp -Pintegration '-Ddebug=false' clean verify` | Build e JAR aprovados; 34 testes sem falhas ou ignorados. |
+| Arquitetura e teste unitário | 11 regras ArchUnit e 1 teste de falha de autenticação por indisponibilidade do banco aprovados. |
+| Integração PostgreSQL/HTTP | 22 testes aprovados; V1–V4 validadas sem reaplicação. |
+| `tools/validate_contract.py` | 10 verificações de contrato aprovadas. |
+| Comparação com o validador do gateway | 31 perfis aceitos/rejeitados por HTTP comparados com sucesso. |
+| Inspeção do JAR | 4 models, 3 controllers, 4 services e 5 repositories nos pacotes por camada; sem classes nos pacotes antigos. |
+
+Log local: `target/layers-verification.log`; relatórios em
+`target/surefire-reports/` e `target/failsafe-reports/`. Esses artefatos são
+ignorados pelo Git e podem ser removidos por `clean`; os comandos acima permitem
+gerar novos relatórios. O [guia de arquitetura](../docs/arquitetura_backend.md)
+registra a estrutura validada. Essas evidências não homologam AWS, câmera ou deploy.
+
+### Histórico da fundação (BE-001)
+
+As verificações abaixo foram executadas na entrega inicial de BE-001, antes da
+implementação dos demais recortes. Suas contagens não representam a suíte atual.
 
 | Verificação executada | Resultado |
 |---|---|
@@ -282,7 +316,8 @@ no mesmo escopo. `COMPANY_ADMIN` só vê empresas com vínculo ativo. Consulta p
 ID de outra empresa responde 403 antes de revelar sua existência; plataforma
 recebe 404 para recurso inexistente. Respostas não incluem senhas, hashes ou
 configuração de câmera. JSON/campos extras, booleanos e inteiros são validados
-sem coerção silenciosa. Demais rotas permanecem indisponíveis.
+sem coerção silenciosa. As rotas de quadras estão descritas na seção BE-005;
+dispositivos e integração cloud seguem pendentes.
 
 ### Provisionar administrador de empresa
 
@@ -322,7 +357,7 @@ dedicado. `verify` sem o perfil executa os testes unitários, mas não os `*IT`.
 Os relatórios estão em `target/surefire-reports/` e `target/failsafe-reports/`.
 
 O [backlog](../docs/sprints_backend.md) registra resultados e estado de revisão.
-Não há frontend, contas de jogadores, cadastro de dispositivos, auditoria
+Não há área administrativa web, contas de jogadores, cadastro de dispositivos, auditoria
 BE-007 ou integração AWS neste recorte. TLS de produção, Docker Compose e
 implantação real não foram homologados. Os códigos 429 planejados na OpenAPI
 não significam que um limitador distribuído já foi entregue. Referência técnica:

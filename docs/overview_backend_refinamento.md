@@ -13,8 +13,9 @@ Atualizado em 15/10/2026. Fundação e decisões entregues; BE-003–005 impleme
 | [Sprints e histórias](sprints_backend.md) | Backlog executável BE-001–031; dependências, escopo e verificações por tarefa. |
 | [Contrato cloud v1](contrato_cloud_gateway_v1.md) | Payloads e comportamento exigido pelo gateway existente. |
 | [Modelo de dados](modelagem_banco_de_dados.md) | Invariantes que a primeira migration precisa garantir. |
+| [Arquitetura do backend](arquitetura_backend.md) | Organização Java por camada, responsabilidades e verificações arquiteturais. |
 
-Quando houver implementação, migrations e OpenAPI versionados no backend serão as referências executáveis de dados e API. Não manter cópias de DDL ou JSON em vários documentos.
+As migrations e a OpenAPI versionadas no backend são as referências executáveis de dados e contratos. A OpenAPI também descreve operações futuras; o [backlog](sprints_backend.md) e o [README](../backend/README.md) identificam o recorte implementado. Não manter cópias de DDL ou JSON em vários documentos.
 
 ## 2. Escopo do primeiro backend
 

@@ -23,7 +23,7 @@ Uma história por tarefa. Escolher a primeira elegível na ordem abaixo; conclui
 
 **Fila atual:** BE-001–004 continuam como base entregue para revisão; BE-005 foi implementada sobre essa base por solicitação de continuidade e está em revisão com as evidências abaixo. BE-006 é o próximo recorte de implementação após revisão/integração das dependências. As demais histórias aguardam implementações e decisões ainda abertas quando indicadas. Não criar endpoints fictícios, bypass de autorização ou políticas silenciosas para declarar uma história concluída.
 
-Cada ficha abaixo define **objetivo**, **dependências/decisões**, **escopo**, **aceite**, **verificação** e **referências**. Os caminhos são relativos à raiz do repositório. A estrutura interna de pacotes e os comandos serão fixados em BE-001; fichas seguintes referem-se a módulos lógicos, sem impor arquivos ainda inexistentes.
+Cada ficha abaixo define **objetivo**, **dependências/decisões**, **escopo**, **aceite**, **verificação** e **referências**. Os caminhos são relativos à raiz do repositório. Versões e comandos foram fixados em BE-001; a estrutura atual segue o [guia de arquitetura](arquitetura_backend.md). As fichas referem-se a funcionalidades, cujas classes ficam nos pacotes por camada do mesmo módulo Maven.
 
 Para distribuir o trabalho, usar o seguinte pedido, preenchendo o ID:
 
