@@ -73,6 +73,7 @@ abstract class AdminTestSupport {
     @Autowired AdminSessionService sessions;
     @Autowired AdminJwt jwt;
     @Autowired org.springframework.context.ApplicationContext context;
+    final List<UUID> correlations = new java.util.concurrent.CopyOnWriteArrayList<>();
     final List<UUID> users = new ArrayList<>();
     final List<String> companies = new ArrayList<>();
     final JsonMapper mapper = JsonMapper.builder().build();
@@ -81,7 +82,10 @@ abstract class AdminTestSupport {
     @BeforeEach void resetClock() { CLOCK.reset(); }
 
     @AfterEach void removeOnlyOwnFixtures() {
+        for (UUID id : correlations) jdbc.update("DELETE FROM administrative_audit WHERE correlation_id=?", id);
+        for (String id : companies) jdbc.update("DELETE FROM administrative_audit WHERE empresa_id=?", id);
         for (UUID id : users) {
+            jdbc.update("DELETE FROM administrative_audit WHERE actor_id=? OR resource_id=?", id, id.toString());
             jdbc.update("DELETE FROM admin_session WHERE user_id=?", id);
             jdbc.update("DELETE FROM admin_company_membership WHERE user_id=?", id);
             jdbc.update("DELETE FROM app_user WHERE id=?", id);
@@ -107,7 +111,9 @@ abstract class AdminTestSupport {
         builder.method(method, body == null ? HttpRequest.BodyPublishers.noBody()
                 : HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)));
         if (body != null) builder.header("Content-Type", "application/json");
-        return client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+        var response = client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+        response.headers().firstValue("X-Correlation-ID").ifPresent(value -> correlations.add(UUID.fromString(value)));
+        return response;
     }
 
     @SuppressWarnings("unchecked")

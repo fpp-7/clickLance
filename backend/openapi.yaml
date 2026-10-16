@@ -1,12 +1,14 @@
 openapi: 3.1.0
 info:
   title: ClickLance — contratos do primeiro recorte
-  version: 0.4.0
+  version: 0.7.0
   description: >-
-    Contratos BE-002. BE-003–005 implementam sessão administrativa, empresas e quadras;
-    demais operações são planejadas e ainda não estão disponíveis.
+    Contratos BE-002. BE-003–012 implementam administração, configuração remota
+    e ingestão idempotente v1. Operações de jogadores permanecem fora deste contrato.
     Decisões e autorização em docs/overview_backend_refinamento.md.
     Configuração/ingestão preservam o contrato cloud v1 e o cliente existente.
+    BE-007 acrescenta X-Correlation-ID gerado pelo servidor a respostas administrativas;
+    erros usam o mesmo UUID em correlation_id, sem copiar payloads ou headers recebidos.
     Cadastro de empresa requer PLATFORM_ADMIN; demais ações administrativas
     requerem esse papel ou COMPANY_ADMIN com vínculo ativo à empresa do recurso.
     Validações entre campos, vínculo, IANA e tipos lexicais são semânticas adicionais.
@@ -37,9 +39,13 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/AdminLogin'}
       responses:
+        '500': {$ref: '#/components/responses/InternalError'}
+        '405': {$ref: '#/components/responses/BadRequest'}
+        '415': {$ref: '#/components/responses/BadRequest'}
         '201':
           description: Sessão persistida e JWT emitido
           headers:
+            X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
             Cache-Control: {schema: {type: string, const: no-store}}
           content:
             application/json:
@@ -59,11 +65,15 @@ paths:
       summary: Consultar identidade e permissões atuais
       description: JWT não substitui validação de usuário, sessão e vínculo no banco.
       responses:
+        '500': {$ref: '#/components/responses/InternalError'}
+        '405': {$ref: '#/components/responses/BadRequest'}
         '200':
           description: Identidade administrativa sem credenciais
           content:
             application/json:
               schema: {$ref: '#/components/schemas/AdminIdentity'}
+          headers:
+            X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '503': {$ref: '#/components/responses/Unavailable'}
@@ -74,7 +84,12 @@ paths:
       x-implementation-status: implemented
       summary: Revogar imediatamente a sessão autenticada
       responses:
-        '204': {description: Revogação persistida; o mesmo JWT não autoriza nova requisição}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '405': {$ref: '#/components/responses/BadRequest'}
+        '204':
+          description: Revogação persistida; o mesmo JWT não autoriza nova requisição
+          headers:
+            X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '503': {$ref: '#/components/responses/Unavailable'}
@@ -91,11 +106,16 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/EmpresaCreate'}
       responses:
+        '500': {$ref: '#/components/responses/InternalError'}
+        '405': {$ref: '#/components/responses/BadRequest'}
+        '415': {$ref: '#/components/responses/BadRequest'}
         '201':
           description: Empresa persistida
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Empresa'}
+          headers:
+            X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
@@ -111,11 +131,15 @@ paths:
         - {$ref: '#/components/parameters/Page'}
         - {$ref: '#/components/parameters/Size'}
       responses:
+        '500': {$ref: '#/components/responses/InternalError'}
+        '405': {$ref: '#/components/responses/BadRequest'}
         '200':
           description: Página filtrada por vínculo; plataforma vê todas
           content:
             application/json:
               schema: {$ref: '#/components/schemas/EmpresaPage'}
+          headers:
+            X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
@@ -131,11 +155,15 @@ paths:
       x-implementation-status: implemented
       summary: Consultar empresa autorizada
       responses:
+        '500': {$ref: '#/components/responses/InternalError'}
+        '405': {$ref: '#/components/responses/BadRequest'}
         '200':
           description: Empresa sem configuração de câmera ou credenciais
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Empresa'}
+          headers:
+            X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
@@ -156,11 +184,16 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/QuadraCreate'}
       responses:
+        '500': {$ref: '#/components/responses/InternalError'}
+        '405': {$ref: '#/components/responses/BadRequest'}
+        '415': {$ref: '#/components/responses/BadRequest'}
         '201':
           description: Quadra persistida com empresa e fuso coerentes
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Quadra'}
+          headers:
+            X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
@@ -177,11 +210,15 @@ paths:
         - {$ref: '#/components/parameters/Page'}
         - {$ref: '#/components/parameters/Size'}
       responses:
+        '500': {$ref: '#/components/responses/InternalError'}
+        '405': {$ref: '#/components/responses/BadRequest'}
         '200':
           description: Página sem URLs de câmera
           content:
             application/json:
               schema: {$ref: '#/components/schemas/QuadraPage'}
+          headers:
+            X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
@@ -199,11 +236,15 @@ paths:
       x-implementation-status: implemented
       summary: Consultar quadra, conferindo empresa do caminho
       responses:
+        '500': {$ref: '#/components/responses/InternalError'}
+        '405': {$ref: '#/components/responses/BadRequest'}
         '200':
           description: Quadra autorizada
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Quadra'}
+          headers:
+            X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
@@ -217,21 +258,29 @@ paths:
       tags: [Administração]
       operationId: criarDispositivo
       x-story: BE-006
+      x-implementation-status: implemented
       summary: Provisionar dispositivo vinculado à quadra autorizada
       description: >-
         Identidade global única e vínculo imutável. Token aleatório de 32 bytes,
         base64url, devolvido só nesta emissão; hash no banco. Não reapresentar
         token em retry: conflito 409 exige intervenção de provisionamento/rotação.
         Configurar DEVICE_ID, QUADRA_ID e S3_BUCKET_NAME localmente no gateway.
+        Bucket deve constar em DEVICE_ALLOWED_BUCKETS no servidor; lista vazia
+        retorna 503 e bucket nao permitido retorna 422. Cadastro administrativo
+        em origem inativa nao habilita autenticacao do dispositivo.
       requestBody:
         required: true
         content:
           application/json:
             schema: {$ref: '#/components/schemas/DispositivoCreate'}
       responses:
+        '500': {$ref: '#/components/responses/InternalError'}
+        '405': {$ref: '#/components/responses/BadRequest'}
+        '415': {$ref: '#/components/responses/BadRequest'}
         '201':
           description: Dispositivo e credencial persistidos; segredo exibido uma vez
           headers:
+            X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
             Cache-Control: {schema: {type: string, const: no-store}}
           content:
             application/json:
@@ -247,16 +296,21 @@ paths:
       tags: [Administração]
       operationId: listarDispositivos
       x-story: BE-006
+      x-implementation-status: implemented
       summary: Listar dispositivos da origem autorizada por ID
       parameters:
         - {$ref: '#/components/parameters/Page'}
         - {$ref: '#/components/parameters/Size'}
       responses:
+        '500': {$ref: '#/components/responses/InternalError'}
+        '405': {$ref: '#/components/responses/BadRequest'}
         '200':
           description: Página sem token ou hash
           content:
             application/json:
               schema: {$ref: '#/components/schemas/DispositivoPage'}
+          headers:
+            X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
@@ -270,17 +324,88 @@ paths:
       tags: [Administração]
       operationId: consultarDispositivo
       x-story: BE-006
+      x-implementation-status: implemented
       summary: Consultar dispositivo derivando a empresa pelo vínculo persistido
+      description: >-
+        Plataforma recebe 404 para identidade ausente. Para COMPANY_ADMIN,
+        dispositivo fora do escopo ou ausente retorna o mesmo 403, sem revelar
+        existencia nem origem. Consulta nao retorna token ou hash.
       responses:
+        '500': {$ref: '#/components/responses/InternalError'}
+        '405': {$ref: '#/components/responses/BadRequest'}
         '200':
           description: Cadastro sem credenciais
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Dispositivo'}
+          headers:
+            X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/admin/empresas/{empresa_id}/auditoria:
+    parameters:
+      - {$ref: '#/components/parameters/EmpresaId'}
+    get:
+      tags: [Administração]
+      operationId: listarAuditoriaEmpresa
+      x-story: BE-007
+      x-implementation-status: implemented
+      summary: Consultar auditoria somente da empresa autorizada
+      description: >-
+        Plataforma ou COMPANY_ADMIN com vinculo ativo. Ordenacao por occurred_at/id
+        decrescente, contagem e itens no mesmo snapshot. Nao registra leitura bem-sucedida
+        como nova acao. Historico sem dados de negocio, credenciais ou corpo de requisicao.
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/Size'}
+      responses:
+        '500': {$ref: '#/components/responses/InternalError'}
+        '405': {$ref: '#/components/responses/BadRequest'}
+        '200':
+          description: Pagina no escopo autorizado
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuditPage'}
+          headers:
+            X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/admin/auditoria/{correlation_id}:
+    parameters:
+      - name: correlation_id
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+    get:
+      tags: [Administração]
+      operationId: consultarAuditoriaCorrelacao
+      x-story: BE-007
+      x-implementation-status: implemented
+      summary: Investigar uma correlacao; somente PLATFORM_ADMIN
+      description: >-
+        Inclui registros sem empresa ou com ator anonimo. Retorna lista vazia para
+        correlacao ausente. Administrador de empresa recebe 403 mesmo que conheca o UUID.
+        Nao oferece listagem global de auditoria.
+      responses:
+        '500': {$ref: '#/components/responses/InternalError'}
+        '405': {$ref: '#/components/responses/BadRequest'}
+        '200':
+          description: Registros da correlacao solicitada
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/AuditEntry'}}
+          headers:
+            X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
         '503': {$ref: '#/components/responses/Unavailable'}
   /api/v1/admin/dispositivos/{dispositivo_id}/configuracoes:
     parameters:
@@ -289,6 +414,7 @@ paths:
       tags: [Administração]
       operationId: publicarConfiguracao
       x-story: BE-008
+      x-implementation-status: implemented
       summary: Publicar configuração versionada na origem autorizada
       description: >-
         base_version null somente na primeira publicação, depois igual à versão
@@ -306,6 +432,7 @@ paths:
           description: Publicação persistida; conteúdo sensível restrito à origem autorizada
           headers:
             Cache-Control: {schema: {type: string, const: no-store}}
+            X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ConfigPublication'}
@@ -316,6 +443,9 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '422': {$ref: '#/components/responses/Unprocessable'}
         '503': {$ref: '#/components/responses/Unavailable'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '405': {$ref: '#/components/responses/BadRequest'}
+        '415': {$ref: '#/components/responses/BadRequest'}
   /api/v1/dispositivos/{dispositivo_id}/config:
     parameters:
       - {$ref: '#/components/parameters/DispositivoId'}
@@ -323,6 +453,7 @@ paths:
       tags: [Gateway]
       operationId: consultarConfiguracaoV1
       x-story: BE-008
+      x-implementation-status: implemented
       security:
         - DeviceToken: []
       summary: Entregar configuração v1 para o próprio dispositivo
@@ -336,6 +467,7 @@ paths:
           description: Envelope exato aceito pelo gateway v1
           headers:
             Cache-Control: {schema: {type: string, const: no-store}}
+            X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
           content:
             application/json:
               schema: {$ref: '#/components/schemas/GatewayConfig'}
@@ -344,11 +476,13 @@ paths:
         '403': {$ref: '#/components/responses/Forbidden'}
         '429': {$ref: '#/components/responses/RateLimited'}
         '503': {$ref: '#/components/responses/Unavailable'}
+        '500': {$ref: '#/components/responses/InternalError'}
   /api/v1/replays:
     post:
       tags: [Gateway]
       operationId: registrarReplayV1
       x-story: BE-011
+      x-implementation-status: implemented
       security:
         - DeviceToken: []
       summary: Confirmar replay somente após commit durável
@@ -373,11 +507,17 @@ paths:
       responses:
         '201':
           description: Primeiro registro durável; inclui chegada vencida
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+            X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ReplayAck'}
         '200':
           description: Mesmo evento e conteúdo imutável; não recria prazo/objeto
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+            X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ReplayAck'}
@@ -388,6 +528,8 @@ paths:
         '422': {$ref: '#/components/responses/Unprocessable'}
         '429': {$ref: '#/components/responses/RateLimited'}
         '503': {$ref: '#/components/responses/Unavailable'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '415': {$ref: '#/components/responses/BadRequest'}
 components:
   securitySchemes:
     AdminBearer:
@@ -425,18 +567,24 @@ components:
       in: query
       schema: {type: integer, minimum: 1, maximum: 100, default: 20}
   headers:
+    CorrelationId:
+      description: UUID gerado pelo servidor; igual a correlation_id no corpo de erro. Header recebido nao e reutilizado.
+      schema: {type: string, format: uuid}
     RetryAfter:
       description: Segundos até nova tentativa; sem mudança de identidade do evento
       schema: {type: integer, minimum: 1}
   responses:
     BadRequest:
       description: JSON/header/caminho malformado; INVALID_REQUEST
+      headers:
+        X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
       content:
         application/json:
           schema: {$ref: '#/components/schemas/ApiError'}
     Unauthorized:
       description: Credencial ausente/inválida, sessão expirada/revogada ou usuário inativo; UNAUTHENTICATED
       headers:
+        X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
         WWW-Authenticate:
           description: Bearer somente para a API administrativa; não tratar DeviceToken como Bearer
           schema: {type: string}
@@ -445,27 +593,36 @@ components:
           schema: {$ref: '#/components/schemas/ApiError'}
     Forbidden:
       description: Papel/vínculo/origem sem permissão; FORBIDDEN ou ORIGIN_INACTIVE
+      headers:
+        X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
       content:
         application/json:
           schema: {$ref: '#/components/schemas/ApiError'}
     NotFound:
       description: Recurso inexistente no escopo autorizado; RESOURCE_NOT_FOUND
+      headers:
+        X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
       content:
         application/json:
           schema: {$ref: '#/components/schemas/ApiError'}
     Conflict:
       description: Identidade/conteúdo/versão em conflito; IDENTITY_CONFLICT, CONTENT_CONFLICT ou CONFIG_VERSION_CONFLICT
+      headers:
+        X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
       content:
         application/json:
           schema: {$ref: '#/components/schemas/ApiError'}
     Unprocessable:
       description: Campo fora do domínio; VALIDATION_FAILED ou EVENT_IN_FUTURE
+      headers:
+        X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
       content:
         application/json:
           schema: {$ref: '#/components/schemas/ApiError'}
     RateLimited:
       description: Limite de requisições; RATE_LIMITED
       headers:
+        X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
         Retry-After: {$ref: '#/components/headers/RetryAfter'}
       content:
         application/json:
@@ -473,7 +630,15 @@ components:
     Unavailable:
       description: Dependência, objeto ou configuração indisponível; DEPENDENCY_UNAVAILABLE, OBJECT_NOT_READY ou CONFIGURATION_NOT_READY
       headers:
+        X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
         Retry-After: {$ref: '#/components/headers/RetryAfter'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    InternalError:
+      description: Falha inesperada; INTERNAL_ERROR, sem detalhes internos
+      headers:
+        X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
       content:
         application/json:
           schema: {$ref: '#/components/schemas/ApiError'}
@@ -726,7 +891,11 @@ components:
         evento_id: {$ref: '#/components/schemas/EventoId'}
         dispositivo_id: {$ref: '#/components/schemas/DeviceId'}
         quadra_id: {$ref: '#/components/schemas/OriginId'}
-        timestamp: {type: string, format: date-time, pattern: '(Z|[+-][0-9]{2}:[0-9]{2})$'}
+        timestamp:
+          type: string
+          format: date-time
+          pattern: '(Z|[+-][0-9]{2}:[0-9]{2})$'
+          description: Offset explicito; precisao maxima de microssegundos, como o cliente v1. Fracao nao representavel e rejeitada sem truncar o instante. Anos UTC de 1 a 9998.
         objeto: {$ref: '#/components/schemas/ReplayObject'}
       examples:
         - contrato_versao: 1
@@ -775,6 +944,37 @@ components:
         page: {type: integer, minimum: 0}
         size: {type: integer, minimum: 1, maximum: 100}
         total: {type: integer, minimum: 0}
+    AuditEntry:
+      type: object
+      additionalProperties: false
+      required: [audit_id, correlation_id, occurred_at, actor_id, actor_type, action, resource_type, resource_id, empresa_id, outcome, code, http_status]
+      description: >-
+        Metadados fechados. Actor_id e UUID validado, sem email. SYSTEM em comandos
+        operacionais; ANONYMOUS quando identidade nao foi autenticada. IDs de recurso
+        em sucesso vem do registro persistido; recusas nao copiam IDs brutos do caminho.
+        Sem payload, URL, IP, headers, token ou hash. Snapshots nao dependem de FK do recurso.
+      properties:
+        audit_id: {type: string, format: uuid}
+        correlation_id: {type: string, format: uuid}
+        occurred_at: {type: string, format: date-time}
+        actor_id: {type: [string, 'null'], format: uuid}
+        actor_type: {type: string, enum: [ADMIN, ANONYMOUS, SYSTEM]}
+        action: {type: string, pattern: '^[A-Z_]{1,64}$'}
+        resource_type: {type: string, pattern: '^[A-Z_]{1,32}$'}
+        resource_id: {type: [string, 'null'], minLength: 1, maxLength: 64, pattern: '^[A-Za-z0-9_-]+$'}
+        empresa_id: {anyOf: [{$ref: '#/components/schemas/OriginId'}, {type: 'null'}]}
+        outcome: {type: string, enum: [SUCCESS, REFUSED, FAILED]}
+        code: {type: string, pattern: '^[A-Z_]{1,64}$'}
+        http_status: {type: [integer, 'null'], minimum: 100, maximum: 599}
+    AuditPage:
+      type: object
+      additionalProperties: false
+      required: [items, page, size, total]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/AuditEntry'}}
+        page: {type: integer, minimum: 0}
+        size: {type: integer, minimum: 1, maximum: 100}
+        total: {type: integer, minimum: 0}
     ApiError:
       type: object
       additionalProperties: false
@@ -782,7 +982,7 @@ components:
       properties:
         code:
           type: string
-          enum: [INVALID_REQUEST, UNAUTHENTICATED, FORBIDDEN, ORIGIN_INACTIVE, RESOURCE_NOT_FOUND, IDENTITY_CONFLICT, CONTENT_CONFLICT, CONFIG_VERSION_CONFLICT, VALIDATION_FAILED, EVENT_IN_FUTURE, RATE_LIMITED, DEPENDENCY_UNAVAILABLE, OBJECT_NOT_READY, CONFIGURATION_NOT_READY]
+          enum: [INVALID_REQUEST, UNAUTHENTICATED, FORBIDDEN, ORIGIN_INACTIVE, RESOURCE_NOT_FOUND, IDENTITY_CONFLICT, CONTENT_CONFLICT, CONFIG_VERSION_CONFLICT, VALIDATION_FAILED, EVENT_IN_FUTURE, RATE_LIMITED, DEPENDENCY_UNAVAILABLE, OBJECT_NOT_READY, CONFIGURATION_NOT_READY, INTERNAL_ERROR]
         message: {type: string, minLength: 1, maxLength: 240}
         correlation_id: {type: string, format: uuid}
         violations:
@@ -793,7 +993,7 @@ components:
             required: [field, code]
             properties:
               field: {type: string, minLength: 1, maxLength: 120}
-              code: {type: string, enum: [REQUIRED, INVALID_FORMAT, OUT_OF_RANGE, UNKNOWN_FIELD, MISMATCH]}
+              code: {type: string, enum: [REQUIRED, INVALID_FORMAT, OUT_OF_RANGE, UNKNOWN_FIELD, MISMATCH, NOT_ALLOWED]}
       examples:
         - code: VALIDATION_FAILED
           message: Campos fora do dominio permitido.

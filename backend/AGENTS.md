@@ -33,6 +33,7 @@ Escolhas técnicas rotineiras dentro do recorte podem ser resolvidas com justifi
 - Mantenha as funcionalidades no mesmo módulo Maven, nos pacotes por camada definidos acima. Não introduzir microserviços, broker, provedor de identidade ou outra plataforma sem necessidade da história e decisão técnica registrada.
 - Não manter SQL/JSON concorrentes em documentos: migrations e OpenAPI do backend serão as fontes executáveis; contrato v1 continua obrigatório para o gateway.
 - Nunca versionar senhas, tokens, credenciais AWS, URLs de câmera autenticadas ou configuração local real.
+- Escritas administrativas devem gravar sucesso por `AuditService` na mesma transação. Erros HTTP administrativos passam por `ApiErrorResponder`, com recusa em transação separada e correlação gerada pelo servidor. Não copiar payload, headers, emails ou caminhos brutos para a auditoria; logs de sucesso só após commit. Reutilize o mecanismo BE-007 nas próximas histórias.
 - Identidade autenticada e autorização por empresa são verificações distintas. UUID conhecido não concede acesso.
 - `evento_id` é a identidade da ingestão; proximidade de cinco segundos não é idempotência cloud.
 - Confirmação v1 deve refletir commit durável. Repetição não altera origem/prazo nem recria objeto purgado.

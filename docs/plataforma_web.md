@@ -1,6 +1,6 @@
 # ClickLance — plataforma web
 
-Atualizado em 15/10/2026. Documento de escopo e orientação para desenvolvimento.
+Atualizado em 16/10/2026. Documento de escopo e orientação para desenvolvimento.
 **Estado atual:** aplicação Next.js em `plataforma_web/`, com landing, busca de
 arenas e detalhe com quadras. O modo padrão usa dados fictícios; integração real,
 player, login, biblioteca e instalação PWA seguem pendentes. Comandos e limites
@@ -58,7 +58,7 @@ O prazo clique→reprodução depende da jornada completa e ainda exige homologa
 | Perfil | Jornada prevista | Limite de autorização |
 |---|---|---|
 | Jogador | Encontrar quadra, escolher data/horário, assistir e salvar na biblioteca. | Acesso público/autenticado e conservação dependem de D02/D03; não presumir acesso por conhecer o ID. |
-| Administrador de empresa | Consultar sua empresa e cadastrar/consultar quadras; dispositivos e configurações entram nas próximas entregas. | Somente empresas com vínculo administrativo ativo. |
+| Administrador de empresa | Consultar sua empresa e cadastrar/consultar quadras e dispositivos; publicação de configuração entra nas próximas entregas. | Somente empresas com vínculo administrativo ativo. |
 | Administrador da plataforma | Criar/consultar empresas e operar recursos autorizados da plataforma. | Papel explícito provisionado no servidor; não nasce de cadastro público. |
 
 ### Jornada do jogador
@@ -82,7 +82,7 @@ Download e compartilhamento não entram na interface antes da decisão D07.
 4. Administrador de empresa consulta apenas seus recursos autorizados.
 5. Encerrar sessão e remover dados sensíveis mantidos pela interface.
 
-Login, sessão, empresas e quadras são o recorte já disponível para integração com o
+Login, sessão, empresas, quadras e dispositivos são o recorte já disponível para integração com o
 backend. Não há tela de cadastro público que conceda papel administrativo.
 Provisionamento inicial continua operacional, conforme o guia do backend.
 
@@ -105,9 +105,9 @@ descrevem a jornada planejada, conforme as APIs e decisões forem entregues.
 | `/admin/empresas` | Lista autorizada e criação exclusiva da plataforma. | BE-004 implementada, em revisão. |
 | `/admin/empresas/[empresaId]` | Consulta da empresa e acesso à gestão de quadras. | BE-004/005 implementadas, em revisão; interface administrativa pendente. |
 
-Cadastro e consulta de quadras já podem ser integrados conforme BE-005.
-Dispositivos, publicação de configuração, bloqueio de conteúdo e saúde da instalação
-entram na área administrativa quando BE-006–008, BE-022 e BE-026/027
+Cadastro e consulta de quadras/dispositivos já podem ser integrados conforme
+BE-005/006. Publicação de configuração, bloqueio de conteúdo e saúde da instalação
+entram na área administrativa conforme os contratos BE-008 (disponível), BE-022 e BE-026/027
 disponibilizarem os respectivos comportamentos.
 Não criar botões que aparentem executar operações ainda indisponíveis.
 
@@ -118,8 +118,10 @@ Não criar botões que aparentem executar operações ainda indisponíveis.
 | Login, identidade e logout administrativos | Implementados em BE-003, entregues para revisão. | Integrar com rotas e erros da OpenAPI. |
 | Criação, listagem e consulta de empresas | Implementadas em BE-004, entregues para revisão. | Respeitar papel, paginação e campos do contrato. |
 | Criação, listagem e consulta de quadras | Implementadas em BE-005, entregues para revisão. | Respeitar empresa autorizada, fuso e perfil de captura; interface administrativa pendente. |
-| Dispositivos e publicação de configuração | BE-006–008 ainda pendentes. | Prototipação explícita; sem integração real anunciada. |
-| Registro de replay do gateway | BE-009–012 ainda pendentes. | Não atribuir à web a ingestão do dispositivo. |
+| Cadastro/consulta de dispositivos e emissão inicial | Implementados em BE-006, entregues para revisão. | Token exibido apenas na emissão, sem armazenamento durável no navegador; interface administrativa pendente. |
+| Auditoria administrativa | Implementada em BE-007, entregue para revisão. | Consulta por empresa; investigação por correlação exclusiva da plataforma. Interface web pendente. |
+| Publicação de configuração | BE-008 implementada, entregue para revisão. | Publicação versionada disponível; interface administrativa pendente. |
+| Registro de replay do gateway | BE-009–012 implementadas, entregues para revisão. | Cliente real validado localmente; AWS/hardware pendentes. Ingestão é do dispositivo. |
 | Conta de jogador, descoberta e reprodução | BE-013–017 ainda pendentes e condicionadas às decisões aplicáveis. | Aguardar contratos antes da integração real. |
 | Biblioteca e encerramento de conta | BE-018–021 ainda pendentes. | Não prometer conservação ou acesso sem política. |
 | Landing, busca/detalhe de arenas e API mock | Implementados em `plataforma_web/`. | Consultas demonstrativas; não comprovam integração com backend real. |

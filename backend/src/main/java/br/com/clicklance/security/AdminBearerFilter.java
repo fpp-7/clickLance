@@ -1,8 +1,8 @@
 package br.com.clicklance.security;
 
 import br.com.clicklance.service.AdminSessionService;
-import br.com.clicklance.exception.ApiErrors;
 import br.com.clicklance.exception.ApiException;
+import br.com.clicklance.exception.ApiErrorResponder;
 
 import java.io.IOException;
 import java.util.List;
@@ -18,7 +18,8 @@ import org.springframework.transaction.TransactionException;
 
 public final class AdminBearerFilter extends OncePerRequestFilter {
     private final AdminSessionService sessions;
-    public AdminBearerFilter(AdminSessionService sessions) { this.sessions = sessions; }
+    private final ApiErrorResponder errors;
+    public AdminBearerFilter(AdminSessionService sessions, ApiErrorResponder errors) { this.sessions = sessions; this.errors = errors; }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
@@ -38,10 +39,13 @@ public final class AdminBearerFilter extends OncePerRequestFilter {
                 context.setAuthentication(UsernamePasswordAuthenticationToken.authenticated(principal, null, List.of()));
                 SecurityContextHolder.setContext(context);
             } catch (ApiException error) {
-                ApiErrors.write(response, error.status(), error.code());
+                errors.write(request, response, error.status(), error.code());
                 return;
             } catch (DataAccessException | TransactionException ignored) {
-                ApiErrors.write(response, 503, "DEPENDENCY_UNAVAILABLE");
+                errors.write(request, response, 503, "DEPENDENCY_UNAVAILABLE");
+                return;
+            } catch (RuntimeException ignored) {
+                errors.write(request, response, 500, "INTERNAL_ERROR");
                 return;
             }
         }

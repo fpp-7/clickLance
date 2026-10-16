@@ -1,5 +1,6 @@
 package br.com.clicklance.service;
 
+import br.com.clicklance.model.AuditAction;
 import br.com.clicklance.security.AdminPrincipal;
 import br.com.clicklance.exception.ApiException;
 import br.com.clicklance.model.CaptureProfile;
@@ -19,7 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class CourtService {
     private final CourtRepository courts;
     private final CompanyService companies;
-    public CourtService(CourtRepository courts, CompanyService companies) { this.courts = courts; this.companies = companies; }
+    private final AuditService audit;
+    public CourtService(CourtRepository courts, CompanyService companies, AuditService audit) { this.courts = courts; this.companies = companies; this.audit = audit; }
 
     @Transactional
     public Court create(AdminPrincipal principal, String companyId, Map<String, Object> body) {
@@ -33,6 +35,7 @@ public class CourtService {
         String id = UUID.randomUUID().toString();
         var court = new Court(id, companyId, name, active, timezone, profile);
         courts.insert(court);
+        audit.success(AuditAction.COURT_CREATE, principal.userId(), companyId, id);
         return court;
     }
 

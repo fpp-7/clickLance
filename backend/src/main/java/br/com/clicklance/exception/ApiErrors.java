@@ -3,7 +3,7 @@ package br.com.clicklance.exception;
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.UUID;
+import br.com.clicklance.security.CorrelationContext;
 import jakarta.servlet.http.HttpServletResponse;
 
 public final class ApiErrors {
@@ -13,7 +13,7 @@ public final class ApiErrors {
         var body = new LinkedHashMap<String, Object>();
         body.put("code", error.code());
         body.put("message", message(error.code()));
-        body.put("correlation_id", UUID.randomUUID().toString());
+        body.put("correlation_id", CorrelationContext.currentOrNew().toString());
         if (!error.violations().isEmpty()) body.put("violations", error.violations());
         return body;
     }
@@ -22,10 +22,15 @@ public final class ApiErrors {
         return switch (code) {
             case "UNAUTHENTICATED" -> "Autenticacao necessaria ou invalida.";
             case "FORBIDDEN" -> "Operacao nao autorizada.";
+            case "ORIGIN_INACTIVE" -> "Origem inativa.";
             case "RESOURCE_NOT_FOUND" -> "Recurso nao encontrado.";
             case "VALIDATION_FAILED" -> "Campos fora do dominio permitido.";
             case "INVALID_REQUEST" -> "Requisicao invalida.";
             case "IDENTITY_CONFLICT" -> "Identidade em conflito.";
+            case "CONFIG_VERSION_CONFLICT" -> "Versao da configuracao em conflito.";
+            case "CONTENT_CONFLICT" -> "Conteudo do evento em conflito.";
+            case "EVENT_IN_FUTURE" -> "Instante do evento alem da tolerancia permitida.";
+            case "INTERNAL_ERROR" -> "Falha interna ao processar a operacao.";
             default -> "Dependencia temporariamente indisponivel.";
         };
     }
@@ -36,9 +41,11 @@ public final class ApiErrors {
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
         response.setHeader("Cache-Control", "no-store");
+        String correlationId = CorrelationContext.currentOrNew().toString();
+        response.setHeader("X-Correlation-ID", correlationId);
         if (status == 401) response.setHeader("WWW-Authenticate", "Bearer");
         if (status == 503) response.setHeader("Retry-After", "5");
         response.getWriter().write("{\"code\":\"" + code + "\",\"message\":\"" + message(code)
-                + "\",\"correlation_id\":\"" + UUID.randomUUID() + "\"}");
+                + "\",\"correlation_id\":\"" + correlationId + "\"}");
     }
 }

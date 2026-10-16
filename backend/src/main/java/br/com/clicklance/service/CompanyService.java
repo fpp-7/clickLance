@@ -1,5 +1,6 @@
 package br.com.clicklance.service;
 
+import br.com.clicklance.model.AuditAction;
 import br.com.clicklance.security.AdminPrincipal;
 import br.com.clicklance.exception.ApiException;
 import br.com.clicklance.model.Company;
@@ -15,7 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class CompanyService {
     private final CompanyRepository companies;
-    public CompanyService(CompanyRepository companies) { this.companies = companies; }
+    private final AuditService audit;
+    public CompanyService(CompanyRepository companies, AuditService audit) { this.companies = companies; this.audit = audit; }
 
     @Transactional
     public Company create(AdminPrincipal principal, Map<String, Object> body) {
@@ -27,6 +29,7 @@ public class CompanyService {
                 "retencao_dias", 1, 30);
         var company = new Company(UUID.randomUUID().toString(), nome, active, retention);
         companies.insert(company);
+        audit.success(AuditAction.COMPANY_CREATE, principal.userId(), company.empresa_id(), company.empresa_id());
         return company;
     }
 

@@ -2,8 +2,9 @@
 
 Aplicação Spring Boot em um único módulo Maven, pacote raiz `br.com.clicklance`,
 com arquitetura **Model–Controller–Service–Repository**, organizada por camada. Inclui a fundação,
-sessões administrativas e cadastro/consulta de empresas e quadras (BE-001–005).
-Dispositivos e integração cloud continuam nas histórias seguintes.
+sessões administrativas e cadastro/consulta de empresas, quadras e dispositivos
+(BE-001–012), com auditoria, configuração remota e ingestão idempotente. Integração
+AWS e homologação física continuam nas histórias seguintes.
 
 Referências: [arquitetura e pacotes](../docs/arquitetura_backend.md),
 [guia do agente](AGENTS.md), [backlog e estado de revisão](../docs/sprints_backend.md)
@@ -40,8 +41,8 @@ models e as dependências permitidas entre controllers, services e repositories.
 ```text
 src/main/java/br/com/clicklance/
   ClickLanceApplication.java     ponto de entrada Spring Boot
-  model/                        Company, Court, CaptureProfile, AdminUser
-  controller/                   controllers HTTP de sessões, empresas e quadras
+  model/                        empresas, quadras, dispositivos e registros internos
+  controller/                   controllers HTTP de sessões, empresas, quadras e dispositivos
   service/                      regras, autorização e transações
   repository/                   SQL/JDBC e mapeamento de persistência
   config/                       configuração Spring e segurança HTTP
@@ -105,7 +106,7 @@ Crie um usuário e banco locais dedicados e informe `DB_HOST`, `DB_PORT`,
 `DB_NAME`, `DB_USER` e `DB_PASSWORD` no `.env` ou no ambiente. O usuário precisa
 de permissão para migrations no schema. A aplicação não cria o banco nem seu
 usuário; Flyway cria sua tabela de histórico e executa as migrations pendentes
-de V1 a V4. Reiniciar valida o histórico sem reaplicar migrations já executadas.
+de V1 a V6. Reiniciar valida o histórico sem reaplicar migrations já executadas.
 Não há H2 nem fallback em memória.
 
 ## Verificação com banco real
@@ -127,9 +128,10 @@ banco compartilhado ou de produção. O perfil falha quando PostgreSQL está
 indisponível; não ignora testes nem substitui o banco por um simulador.
 
 Os testes de integração verificam saúde mínima, proteção de rotas, sessões,
-autorização por empresa, cadastros de empresas/quadras, paginação, constraints e
-concorrência de provisionamento. Flyway é validado sem reaplicação. V1 contém o
-marco técnico `backend_installation`; V2–V4 acrescentam identidade, empresa e quadra.
+autorização por empresa, cadastros de empresas/quadras/dispositivos, paginação,
+constraints e concorrência de provisionamento. Flyway é validado sem reaplicação.
+V1 contém o marco técnico `backend_installation`; V2–V6 acrescentam identidade,
+empresa, quadra, credencial de dispositivo e auditoria administrativa.
 
 Para conferir somente a arquitetura, sem banco, execute nesta pasta:
 
@@ -157,8 +159,10 @@ não é apresentada como pronta. Não inclua senhas em URLs JDBC, comandos ou lo
 
 ## Estado e evidências atuais
 
-BE-001–005 e a reorganização por camada estão disponíveis para revisão.
-O próximo recorte é BE-006, conforme o [backlog](../docs/sprints_backend.md).
+BE-001–012 estão disponíveis para revisão. As evidências de cada recorte
+ficam nas seções correspondentes; BE-013 é o próximo item do [backlog](../docs/sprints_backend.md), condicionado às decisões de conta de jogador.
+
+### Histórico da reorganização por camada
 
 | Verificação da reorganização em 15/10/2026 | Resultado |
 |---|---|
@@ -208,8 +212,8 @@ da revisão e integração, conforme o guia do agente.
 ## Contratos do primeiro recorte (BE-002)
 
 [`openapi.yaml`](openapi.yaml) é a fonte dos schemas, rotas e erros planejados
-para administração e integração v1. Operações BE-003–005 estão implementadas;
-as demais continuam planejadas, sem endpoints disponíveis. Decisões de produto, autorização, bootstrap, sessão e estratégia de
+para administração e integração v1. Operações BE-003–012 estão implementadas;
+contratos de jogador/biblioteca serão acrescentados nas histórias correspondentes. Decisões de produto, autorização, bootstrap, sessão e estratégia de
 verificação de objetos estão na [visão do backend](../docs/overview_backend_refinamento.md).
 BE-002 não alterou o gateway nem acrescentou migrations de domínio.
 
@@ -316,8 +320,8 @@ no mesmo escopo. `COMPANY_ADMIN` só vê empresas com vínculo ativo. Consulta p
 ID de outra empresa responde 403 antes de revelar sua existência; plataforma
 recebe 404 para recurso inexistente. Respostas não incluem senhas, hashes ou
 configuração de câmera. JSON/campos extras, booleanos e inteiros são validados
-sem coerção silenciosa. As rotas de quadras estão descritas na seção BE-005;
-dispositivos e integração cloud seguem pendentes.
+sem coerção silenciosa. As rotas de quadras e dispositivos estão descritas nas
+seções BE-005/006; configuração remota e ingestão são descritas em BE-008–012 abaixo.
 
 ### Provisionar administrador de empresa
 
@@ -357,8 +361,8 @@ dedicado. `verify` sem o perfil executa os testes unitários, mas não os `*IT`.
 Os relatórios estão em `target/surefire-reports/` e `target/failsafe-reports/`.
 
 O [backlog](../docs/sprints_backend.md) registra resultados e estado de revisão.
-Não há área administrativa web, contas de jogadores, cadastro de dispositivos, auditoria
-BE-007 ou integração AWS neste recorte. TLS de produção, Docker Compose e
+Não há área administrativa web, contas de jogadores ou integração AWS
+neste recorte. TLS de produção, Docker Compose e
 implantação real não foram homologados. Os códigos 429 planejados na OpenAPI
 não significam que um limitador distribuído já foi entregue. Referência técnica:
 [validação JWT no Spring Security](https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/jwt.html).
@@ -396,3 +400,280 @@ O último comando depende das ferramentas Python já descritas e do arquivo gera
 por `CourtIT`. Compara perfis efetivamente aceitos/rejeitados por HTTP ao validador
 real do gateway, incluindo bordas, frações e inteiros lexicais. Não altera o
 gateway nem exige câmera. Os resultados e limites ficam na ficha BE-005 do backlog.
+
+## Dispositivos e credenciais (BE-006)
+
+As rotas exigem uma sessão administrativa da plataforma ou vínculo ativo com a
+empresa da quadra:
+
+| Operação | Caminho |
+|---|---|
+| Criar e emitir credencial | `POST /api/v1/admin/empresas/{empresa_id}/quadras/{quadra_id}/dispositivos` |
+| Listar na quadra | `GET` no mesmo caminho, com `page`/`size` |
+| Consultar por ID global | `GET /api/v1/admin/dispositivos/{dispositivo_id}` |
+
+O corpo de criação tem exatamente os campos de `DispositivoCreate` na OpenAPI.
+`dispositivo_id` é informado pelo operador e aceita de 1 a 32 caracteres
+`[A-Za-z0-9_-]`, sem normalização. Ele é único globalmente e deve coincidir com
+`DEVICE_ID` do gateway e `DEVICE` do botão. O firmware atual usa `mega01`.
+
+V5 cria a FK para quadra, da qual deriva a empresa; o banco impede renomear o ID
+ou transferir a quadra. Trocar a origem exige outro dispositivo. O token usa
+32 bytes de `SecureRandom`, base64url sem padding (43 caracteres), e somente seu
+hash SHA-256 é persistido. O retorno 201 inclui `dispositivo` e `device_token`,
+com `Cache-Control: no-store`, depois do commit. Consultas e listagens não
+retornam token ou hash. Repetição do cadastro retorna 409 e preserva a credencial;
+se a resposta de emissão for perdida, é necessária intervenção operacional.
+Rotação e recuperação de credencial não foram antecipadas de BE-026.
+
+### Preparar a lista de buckets e cadastrar
+
+No `.env` do backend, preencha `DEVICE_ALLOWED_BUCKETS` com nomes de buckets
+privados já autorizados pela plataforma, separados por vírgulas, e reinicie a
+aplicação. O exemplo deixa a lista vazia: nessa condição, emissão retorna 503.
+Um bucket fora da lista retorna 422. A lista governa novos cadastros; não revoga
+tokens existentes, não cria bucket e não comprova acesso/IAM ou existência na AWS.
+
+No terminal que já contém `$headers` e `$empresa` dos exemplos administrativos:
+
+```powershell
+$quadraId = Read-Host 'ID da quadra ja cadastrada'
+$deviceId = Read-Host 'ID CL1 do dispositivo'
+$deviceBucket = Read-Host 'Bucket privado autorizado na configuracao do backend'
+$deviceBody = @{ dispositivo_id=$deviceId; active=$true; bucket=$deviceBucket } | ConvertTo-Json
+$deviceIssue = Invoke-RestMethod "http://127.0.0.1:8080/api/v1/admin/empresas/$($empresa.empresa_id)/quadras/$quadraId/dispositivos" -Method Post -Headers $headers -ContentType application/json -Body $deviceBody
+```
+
+A atribuição guarda a resposta sem imprimi-la. Transfira a credencial para a
+configuração local protegida da instalação; não imprima ou versione o objeto
+`$deviceIssue`. Remova-o do terminal após guardar a credencial com segurança.
+
+### Provisionar o gateway localmente
+
+No `.env` local e ignorado de `gateway_captura/`, configure estes campos:
+
+| Campo | Valor de origem |
+|---|---|
+| `DEVICE_ID` | `dispositivo.dispositivo_id` da emissão; igual ao `DEVICE` do botão. |
+| `DEVICE_TOKEN` | `device_token` da emissão, tratado como segredo. |
+| `QUADRA_ID` | `dispositivo.quadra_id`, sem escolher outra quadra no payload. |
+| `S3_BUCKET_NAME` | `dispositivo.bucket`. Credenciais IAM são provisionadas separadamente. |
+| `CONFIG_URL` | URL de `/api/v1/dispositivos/{dispositivo_id}/config`, entregue em BE-008. |
+
+Esses IDs e bucket não são alterados remotamente pelo contrato v1. Eventos já
+aceitos no gateway preservam sua configuração original; não reutilize uma fila
+de outra instalação ao trocar a origem. A ingestão `/api/v1/replays` foi entregue em BE-011; exige storage autorizado e verificável, além do cadastro.
+
+### Autenticação e consultas
+
+`DeviceAuthenticationService.authenticate(id, token)` é reutilizável por
+BE-008/011. Resolve empresa, quadra e bucket pelo banco; compara hashes em tempo
+constante; credencial ausente/inválida/cruzada retorna 401. Credencial correta
+com dispositivo, quadra ou empresa inativo retorna 403 `ORIGIN_INACTIVE`.
+O estado é consultado novamente em cada chamada. Não há rota pública de teste
+nem uso de `X-Device-Token` como sessão administrativa.
+
+Cadastros e consultas administrativas continuam permitidos em origem inativa,
+sem habilitar autenticação operacional. Para consulta pelo ID global, plataforma
+recebe 404 se ele não existe; administrador de empresa recebe o mesmo 403 para
+ID ausente ou fora do escopo, sem confirmar existência. Listagem por quadra
+inclui inativos e mantém paginação/contagem no mesmo escopo e snapshot.
+
+### Verificação BE-006
+
+Em `backend/`, com PostgreSQL dedicado configurado:
+
+```powershell
+.\mvnw.cmd -B -ntp -Pintegration '-Ddebug=false' verify
+.\.venv\Scripts\python.exe -X utf8 tools/validate_contract.py
+.\.venv\Scripts\python.exe -X utf8 tools/validate_contract.py --capture-profiles target/be005-capture-profiles.json
+.\.venv\Scripts\python.exe -X utf8 tools/validate_contract.py --device-responses target/be006-device-responses.json
+```
+
+Verificação em 16/10/2026: 43 testes Java aprovados (30 PostgreSQL/HTTP,
+11 regras de arquitetura e 2 unitários), 11 verificações de contrato, 31 perfis
+comparados com o gateway e 3 respostas HTTP de dispositivos validadas contra a
+OpenAPI. As fixtures exportadas contêm somente respostas sem segredo.
+Logs em `target/be006-verification.log` e relatórios Surefire/Failsafe.
+
+A primeira execução nesta máquina falhou no JDK ao abrir sockets locais
+(`Unable to establish loopback connection`, `UnixDomainSockets.connect`).
+A suíte completa passou com temporários de rede isolados no diretório de build:
+
+```powershell
+$javaSocketDir = Join-Path (Get-Location).Path 'target/temporary-java-domain-sockets'
+New-Item -ItemType Directory -Path $javaSocketDir -Force | Out-Null
+$previousJavaOptions = [Environment]::GetEnvironmentVariable('JAVA_TOOL_OPTIONS', 'Process')
+try {
+    $env:JAVA_TOOL_OPTIONS = ($previousJavaOptions + ' -Djdk.net.unixdomain.tmpdir="' + $javaSocketDir + '"').Trim()
+    .\mvnw.cmd -B -ntp -Pintegration '-Ddebug=false' verify
+} finally {
+    [Environment]::SetEnvironmentVariable('JAVA_TOOL_OPTIONS', $previousJavaOptions, 'Process')
+}
+```
+
+Esse ajuste foi usado apenas no processo de verificação Windows; não muda
+autenticação nem substitui HTTP/PostgreSQL reais. AWS, hardware e jornada
+completa ainda dependem das histórias de integração e homologação.
+
+## Auditoria e correlação (BE-007)
+
+V6 acrescenta `administrative_audit`. Criação de empresa/quadra/dispositivo,
+login/logout, bootstrap e provisionamento de administrador registram sucesso na
+mesma transação da escrita. Falha na auditoria desfaz a ação; nenhum token ou
+cadastro é entregue como sucesso. O log `administrative_audit` só é emitido após
+commit. Comandos operacionais usam ator `SYSTEM`; HTTP autenticado usa `ADMIN`.
+
+Erros administrativos são registrados em transação separada, depois do rollback
+da operação original. Sem identidade autenticada, o ator é `ANONYMOUS`. Falhas
+de gravação dessas recusas retornam 503 e emitem somente o marcador
+`administrative_audit_unavailable`, a ação e a correlação, sem detalhes internos.
+
+As respostas da API têm `X-Correlation-ID`, um UUID novo gerado pelo servidor;
+o header enviado pelo cliente não é reutilizado. O corpo de erro tem o mesmo
+`correlation_id`, `code`, mensagem genérica e, quando aplicável, `violations`
+somente com campos/códigos. JSON inválido, 401/403, 404/405/415, validação e falha
+de banco seguem esse envelope. Erro inesperado recebe 500 `INTERNAL_ERROR`,
+sem mensagem da exception ou stack trace. Os códigos existentes do contrato
+cloud v1 foram preservados; correlação não substitui `evento_id`.
+
+| Consulta administrativa | Autorização |
+|---|---|
+| `GET /api/v1/admin/empresas/{empresa_id}/auditoria?page=0&size=20` | Plataforma ou vínculo ativo com essa empresa. |
+| `GET /api/v1/admin/auditoria/{correlation_id}` | Somente plataforma; lista vazia se a correlação não existe. |
+
+A listagem por empresa ordena por instante e ID decrescentes, com contagem e
+itens no mesmo snapshot. Consultar auditoria com sucesso não cria novos registros.
+O registro contém IDs de ator/recurso/empresa, ação, resultado, código, instante
+e correlação; não contém dados do cadastro, email, IP, payload, headers, tokens,
+hashes, senha ou URL de câmera. IDs de recusas só identificam empresa encontrada
+no banco, sem copiar o caminho bruto. Snapshots permanecem após remoção do recurso;
+não há API de edição/exclusão de auditoria ou política de purga automática neste recorte.
+
+Após configurar o banco de teste e, quando necessário, o ajuste do JDK Windows
+descrito em BE-006, execute em `backend/`:
+
+```powershell
+.\mvnw.cmd -B -ntp -Pintegration '-Ddebug=false' clean verify
+.\.venv\Scripts\python.exe -X utf8 tools/validate_contract.py
+.\.venv\Scripts\python.exe -X utf8 tools/validate_contract.py --audit-responses target/be007-audit-responses.json
+```
+
+O build limpo também evita reaproveitar classes temporárias geradas pelo IDE.
+Os testes exercitam rollback real por falha de auditoria, isolamento A/B,
+paginação, correlação de sucesso/recusa, falha no registro de recusa e ausência
+de credenciais na saída. Fixtures exportadas não incluem segredos. Relatórios
+em `target/surefire-reports/`, `target/failsafe-reports/` e log
+`target/be007-verification.log`. Os limites de AWS/hardware permanecem os das
+histórias de integração e homologação.
+
+Resultado em 16/10/2026: 54 testes Java aprovados (38 PostgreSQL/HTTP,
+11 regras de arquitetura e 5 unitários), sem falhas ou ignorados. Os 8 `AuditIT`
+incluem falhas provocadas no PostgreSQL e captura de saída sem senha, token,
+hash ou URL RTSP com credenciais. Passaram também 12 verificações de contrato,
+2 respostas HTTP de auditoria, 3 respostas de dispositivos e 31 perfis de captura
+contra o validador real do gateway. V6 aplicada e validada sem reaplicação;
+V1–V5 preservadas.
+
+## Configuração e ingestão do gateway (BE-008–012)
+
+V7 acrescenta histórico de publicação e ponteiro da versão atual; V8 acrescenta
+replay, origem composta, snapshot de retenção e referência verificada do objeto.
+V1–V6 permanecem intactas. A organização continua Model–Controller–Service–Repository.
+
+Com sessão de plataforma ou vínculo ativo na empresa, publicar por
+`POST /api/v1/admin/dispositivos/{id}/configuracoes`. Enviar `base_version: null`
+na primeira publicação e a versão atual nas seguintes, além de `settings` com
+pelo menos uma chave da allowlist. O servidor mescla perfil da quadra, valores
+anteriores e alteração solicitada; assume RTSP na primeira publicação se a fonte
+for omitida. Para câmera IP, informar `CAMERA_RTSP_URL` válida com host.
+`CAMERA_RTSP_TRANSPORT` aceita tcp/udp e `dshow` continua disponível para testes.
+Não inserir credenciais reais em exemplos versionados ou histórico de terminal.
+
+Faixas e tipos seguem `remote_config.py`; inteiros lexicais recusam `1.0`.
+Chaves desconhecidas e `null` são recusadas sem valores sensíveis nos erros.
+Omitir chave mantém o valor anterior no backend/cache v1. Não há remoção por
+omissão. Publicação retorna 201 com versão opaca, autor e instante; duas
+alterações da mesma base produzem 201/409. Versão inválida e falha na auditoria
+não substituem a configuração válida. Histórico no PostgreSQL pode conter
+credenciais RTSP e exige acesso operacional restrito, inclusive em backups.
+
+Provisionar `CONFIG_URL` localmente para
+`GET /api/v1/dispositivos/{id}/config`. Token em `X-Device-Token` autentica somente
+o próprio dispositivo; a resposta contém exatamente `version`, `active` e
+`settings`, com `Cache-Control: no-store`. Sem publicação: 503 retentável. Token
+inválido: 401; dispositivo ou pai inativo: 403. O cliente persiste a inativação
+por 401/403. Essas respostas não usam desafio Bearer administrativo.
+`DEVICE_ID`, `QUADRA_ID`, `S3_BUCKET_NAME` e credenciais AWS continuam locais.
+Publicações não reescrevem snapshots de eventos já aceitos pelo gateway.
+
+### Storage e confirmação
+
+SDK S3 2.56.0, região em `AWS_REGION`, credenciais pela cadeia padrão AWS
+(perfil/IAM/ambiente); a API não recebe essas credenciais. `STORAGE_ENDPOINT`
+opcional é exclusivo do operador para endpoint S3 controlado. Nunca vem do
+payload do replay. O SDK usa timeout de conexão/leitura e limite de chamada.
+Conceder somente leitura das instalações autorizadas, incluindo
+`GetObjectVersion` e KMS quando aplicáveis. Não há upload, delete ou listagem.
+
+Antes de chamar storage, conferir origem, bucket provisionado e chave exata
+`replays/{dispositivo_id}/{evento_id}.mp4`. HEAD verifica tamanho positivo e
+metadata `sha256`; GET calcula SHA-256 dos bytes. GET fixa VersionId ou condiciona
+a leitura por `If-Match` do ETag observado; ETag não é checksum.
+Referência: [API oficial S3 GetObject](https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html).
+Divergência de hash retorna 409; objeto vazio, 422. Ausência, timeout, permissão
+negada, 429/5xx remoto ou alteração na leitura retornam 503 com `Retry-After`.
+Conferência de bytes não prova qualidade/decodificação do vídeo. IAM/política do
+bucket precisa impedir sobrescrita futura; esse provisionamento não foi realizado.
+
+`POST /api/v1/replays` usa payload v1, `X-Device-Token` e
+`Idempotency-Key=evento_id`. Timestamp exige offset e precisão representável em
+microssegundos, como o cliente atual; precisão excedente é recusada sem truncar
+a identidade. Até 300 segundos no futuro, inclusive, é aceito. Retenção é copiada
+da empresa no primeiro registro: 1–30 dias, cada dia com 24h desde o instante
+original. Chegada vencida é confirmada com `expired_on_arrival=true`, sem
+rejuvenescimento ou publicação para jogadores.
+
+ACK contém somente `evento_id` e `sha256`: 201 para inserção, 200 para repetição
+idêntica, 409 para conteúdo divergente. Commit termina antes da resposta HTTP;
+duas requisições simultâneas convergem pela constraint PostgreSQL. Reenvio
+autentica a origem e compara o registro antes de consultar storage, inclusive
+após purga. Não recria objeto, prazo ou política. Não há worker de deleção neste recorte.
+
+### Verificação reproduzível
+
+Usar PostgreSQL dedicado e instalar `tools/requirements-contracts.txt` na `.venv`
+antes dos testes: BE-012 executa clientes originais Python em subprocesso. As
+fixtures sintéticas chegam por stdin, sem credenciais em argumentos ou relatórios.
+O teste inicia HTTP S3 em loopback e chama o SDK real contra esse substituto.
+
+```powershell
+.\mvnw.cmd -B -ntp -Pintegration '-Ddebug=false' clean verify
+.\.venv\Scripts\python.exe -X utf8 tools/validate_contract.py
+.\.venv\Scripts\python.exe -X utf8 tools/validate_contract.py --capture-profiles target/be005-capture-profiles.json
+.\.venv\Scripts\python.exe -X utf8 tools/validate_contract.py --device-responses target/be006-device-responses.json
+.\.venv\Scripts\python.exe -X utf8 tools/validate_contract.py --audit-responses target/be007-audit-responses.json
+.\.venv\Scripts\python.exe -X utf8 tools/validate_contract.py --config-responses target/be008-config-responses.json
+.\.venv\Scripts\python.exe -X utf8 tools/validate_contract.py --replay-responses target/be011-replay-responses.json
+```
+
+`GatewayIntegrationIT` verifica configuração, tenant, inativação, rollback de
+publicação, falha adiada no commit, snapshots, chegada vencida, limite futuro,
+concorrência, integridade e conflitos. BE-012 chama `RemoteConfig.refresh/apply`
+e `CloudGateway.register` originais contra a API real, perde a resposta após 201,
+repete com 200 e verifica uma única linha. Confirma conflito terminal, ausência
+retentável e cache inativo. Não requer câmera, botão ou AWS; código funcional do
+gateway permanece intacto. Relatórios em `target/surefire-reports/`,
+`target/failsafe-reports/`, `target/be008-012-verification.log` e
+`target/be012-gateway-result.txt`, descartáveis após build limpo.
+
+Esta verificação local não homologa AWS/hardware. Interfaces de jogador,
+biblioteca, purga, rotação e carga continuam nas histórias correspondentes,
+condicionadas às decisões pendentes.
+
+Resultado BE-008–012 em 16/10/2026: 65 testes Java aprovados, sendo 48 de
+PostgreSQL/HTTP, 11 regras arquiteturais e 6 unitários, sem falhas ou ignorados.
+V7/V8 aplicadas e validadas sem reaplicação; V1–V6 preservadas.
+
+Também aprovadas 12 verificações de contrato, 31 perfis HTTP contra o gateway,
+3 respostas de dispositivos, 2 de auditoria, 2 de configuração e 2 ACKs reais.

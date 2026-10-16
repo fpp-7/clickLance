@@ -1,6 +1,6 @@
 # Backend — visão e decisões
 
-Atualizado em 15/10/2026. Fundação e decisões entregues; BE-003–005 implementam administração, empresas e quadras, propostas para revisão no backlog. Configuração/ingestão cloud ainda não implementadas.
+Atualizado em 16/10/2026. Fundação e decisões entregues; BE-003–012 implementam administração, cadastros, auditoria, configuração e ingestão v1, propostos para revisão no backlog. Integração local usa PostgreSQL e clientes reais; AWS e hardware continuam sem homologação.
 
 ## 1. Por onde começar
 
@@ -116,6 +116,30 @@ Datas civis de consulta usam fuso IANA da quadra, sem alterar esses instantes.
 
 #### Configuração e erros — escolhas técnicas
 
+BE-007: correlação UUID gerada pelo servidor, compartilhada entre resposta,
+auditoria e logs; header recebido não é confiado. Sucessos administrativos
+participam da mesma transação da escrita, com log após commit. Recusas HTTP são
+registradas separadamente; indisponibilidade dessa gravação retorna 503, sem
+detalhes internos. Consulta por empresa exige autorização da empresa; investigação
+por correlação é exclusiva de plataforma, sem listagem global por conveniência.
+Snapshots não contêm payload, headers, emails, IPs, credenciais ou URLs; não há
+purga automática de auditoria. Erros inesperados usam `INTERNAL_ERROR` (500),
+preservando os códigos de configuração/ingestão v1.
+
+Implementação BE-006 em 16/10/2026: a lista `DEVICE_ALLOWED_BUCKETS` é controlada
+pela configuração do servidor da plataforma, separada por vírgulas. Lista vazia
+impede nova emissão com 503; bucket fora dela é recusado com 422. Essa lista
+controla novos cadastros; não é um mecanismo de revogação de credenciais já
+emitidas, nem valida existência/permissão AWS (BE-010). Cadastros administrativos
+continuam permitidos em origem inativa, mas a autenticação do dispositivo recusa
+qualquer um dos três níveis inativos com 403 após validar a credencial.
+
+A consulta por ID global do dispositivo filtra o vínculo administrativo no SQL.
+Para administrador de empresa, recurso ausente ou de outra empresa recebe o
+mesmo 403, sem revelar existência; plataforma recebe 404 para ID ausente.
+Provisionamento repetido/conflitante nunca recupera nem substitui o token.
+O serviço de autenticação fica pronto para BE-008/011, sem expor essas rotas em BE-006.
+
 - Cadastro gera IDs opacos estáveis de empresa/quadra no servidor; `dispositivo_id`
   é informado e segue CL1. Cadastro não aceita papel/vínculo vindos de campos extras.
   Fuso é obrigatório na quadra e validado por `ZoneId`, sem assumir fuso do servidor.
@@ -142,6 +166,25 @@ Datas civis de consulta usam fuso IANA da quadra, sem alterar esses instantes.
   `Retry-After`. Erro usa código estável, mensagem sem valores sensíveis e UUID de
   correlação gerado pelo servidor; violações citam só campos e códigos, nunca valores.
   Não redirecionar requisições autenticadas. Nada neste recorte libera grade/player.
+
+#### Implementação BE-008–012 — escolhas técnicas
+
+V7 mantém histórico e ponteiro atual de configuração; lock no dispositivo serializa
+publicações da mesma base. Perfil da quadra, valores anteriores e patch são
+mesclados antes da validação. Fonte omitida na primeira publicação assume RTSP;
+URL válida é obrigatória. Inteiros seguem a semântica lexical do gateway.
+
+V8 usa FKs compostas de origem e trigger de imutabilidade. Timestamp de ingestão
+exige offset e precisão representável em microssegundos (cliente v1), sem
+truncamento silencioso, com anos UTC de 1 a 9998. Snapshot de retenção e chegada
+vencida ficam duráveis; `purged_at` só simula o estado futuro nos testes.
+
+Replays usam READ COMMITTED e INSERT ON CONFLICT DO NOTHING; o perdedor consulta
+a linha confirmada e compara campos imutáveis. A transação termina antes do ACK.
+A auditoria administrativa permanece atômica na publicação. O adaptador S3 é
+ObjectStorageService, na camada service, com cliente configurado em config; não
+introduz ports ou módulos de outra arquitetura. Testes usam SDK real/HTTP S3
+substituído; homologação AWS segue pendente.
 
 #### Verificação de objeto antes de BE-010 — escolha técnica
 

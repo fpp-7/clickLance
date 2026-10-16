@@ -115,6 +115,40 @@ class ContractTests(unittest.TestCase):
         error['violations'][0]['rejected_value'] = 'must-not-leak'
         self.invalid('ApiError', error)
 
+    def test_audit_and_error_contracts_reject_sensitive_extensions(self):
+        entry = {'audit_id': '8cc5c2cc-a4b6-4a5e-8a45-574499b2e247',
+                 'correlation_id': '8cc5c2cc-a4b6-4a5e-8a45-574499b2e247',
+                 'occurred_at': '2026-10-16T12:00:00Z', 'actor_id': None, 'actor_type': 'ANONYMOUS',
+                 'action': 'ADMIN_LOGIN', 'resource_type': 'ADMIN_SESSION', 'resource_id': None,
+                 'empresa_id': None, 'outcome': 'REFUSED', 'code': 'UNAUTHENTICATED', 'http_status': 401}
+        self.validator('AuditEntry').validate(entry)
+        for field in ('password', 'token', 'token_hash', 'headers', 'payload', 'url', 'email'):
+            self.invalid('AuditEntry', dict(entry, **{field: 'must-not-leak'}))
+        self.invalid('AuditEntry', dict(entry, outcome='apparently-successful'))
+        for code in ('INTERNAL_ERROR', 'UNAUTHENTICATED', 'DEPENDENCY_UNAVAILABLE'):
+            self.validator('ApiError').validate({'code': code, 'message': 'Mensagem segura.', 'correlation_id': entry['correlation_id']})
+        self.validator('ApiError').validate({'code': 'VALIDATION_FAILED', 'message': 'Campo invalido.',
+                'correlation_id': entry['correlation_id'], 'violations': [{'field': 'bucket', 'code': 'NOT_ALLOWED'}]})
+        for name, response in self.spec['components']['responses'].items():
+            self.assertIn('X-Correlation-ID', response['headers'], name)
+
+    def test_device_issuance_and_origin_fields_follow_the_administrative_contract(self):
+        device = {'dispositivo_id': 'mega01', 'empresa_id': 'empresa_001',
+                  'quadra_id': 'quadra_001', 'active': True, 'bucket': 'bucket-privado'}
+        payload = {key: device[key] for key in ('dispositivo_id', 'active', 'bucket')}
+        self.validator('DispositivoCreate').validate(payload)
+        for field in ('empresa_id', 'quadra_id', 'device_token', 'token_hash', 'role'):
+            self.invalid('DispositivoCreate', dict(payload, **{field: 'must-not-be-accepted'}))
+        issued = {'dispositivo': device, 'device_token': 'a' * 43}
+        self.validator('DispositivoIssued').validate(issued)
+        for secret in ('', 'a' * 42, 'a' * 44, 'a' * 42 + '=', 'with spaces'):
+            self.invalid('DispositivoIssued', dict(issued, device_token=secret))
+        for device_id in ('a', '_', 'x' * 32):
+            self.validator('DeviceId').validate(device_id)
+        path = '/api/v1/admin/empresas/{empresa_id}/quadras/{quadra_id}/dispositivos'
+        for method in ('post', 'get'):
+            self.assertEqual(self.spec['paths'][path][method]['x-implementation-status'], 'implemented')
+
     def test_real_gateway_register_emits_contract_and_accepts_ack(self):
         payload = self.schemas['ReplayCreate']['examples'][0]
         event = {'id': payload['evento_id'], 'device': payload['dispositivo_id'],
@@ -164,7 +198,17 @@ class ContractTests(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 3 and sys.argv[1] == '--capture-profiles':
+    if len(sys.argv) == 3 and sys.argv[1] in ('--device-responses', '--audit-responses', '--config-responses', '--replay-responses'):
+        fixtures = json.loads(Path(sys.argv[2]).read_text(encoding='utf-8'))
+        assert fixtures
+        ContractTests.setUpClass()
+        contract = ContractTests()
+        for fixture in fixtures:
+            contract.validator(fixture['schema']).validate(fixture['body'])
+            if fixture['schema'] == 'GatewayConfig':
+                validate_gateway(fixture['body'])
+        print(f'{len(fixtures)} respostas HTTP validadas contra a OpenAPI: OK')
+    elif len(sys.argv) == 3 and sys.argv[1] == '--capture-profiles':
         fixtures = json.loads(Path(sys.argv[2]).read_text(encoding='utf-8'))
         assert fixtures and {item['accepted'] for item in fixtures} == {True, False}
         ContractTests.setUpClass()

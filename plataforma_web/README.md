@@ -104,9 +104,11 @@ favoritos e solicitações comerciais. São propostas do frontend, **não contra
 já implementados no backend**. A fonte dos contratos é a
 [OpenAPI do backend](../backend/openapi.yaml).
 
-O backend atual oferece sessões administrativas, empresas e quadras em
+O backend atual oferece sessões administrativas, empresas, quadras, dispositivos, auditoria e publicação de configuração em
 `/api/v1/admin/...`; este cliente ainda não implementa esse fluxo. Mudar apenas
-o modo e a URL base não torna os projetos compatíveis. É preciso alinhar
+o modo e a URL base não torna os projetos compatíveis. Configuração e ingestão v1
+do gateway estão implementadas e verificadas localmente em BE-008–012; isso não
+libera as APIs do jogador. É preciso alinhar
 caminhos, schemas, paginação, autenticação e erros no adaptador.
 Não alterar o backend para atender silenciosamente a rotas provisórias do mock.
 

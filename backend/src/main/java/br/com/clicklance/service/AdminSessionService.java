@@ -1,5 +1,6 @@
 package br.com.clicklance.service;
 
+import br.com.clicklance.model.AuditAction;
 import br.com.clicklance.security.AdminJwt;
 import br.com.clicklance.repository.AdminMembershipRepository;
 import br.com.clicklance.security.AdminPasswords;
@@ -29,14 +30,16 @@ public class AdminSessionService {
     private final PasswordEncoder passwords;
     private final Clock clock;
     private final String dummyHash;
+    private final AuditService audit;
     public AdminSessionService(AdminUserRepository users, AdminSessionRepository sessions, AdminMembershipRepository memberships,
-                         AdminJwt jwt, PasswordEncoder passwords, Clock clock) {
+                         AdminJwt jwt, PasswordEncoder passwords, Clock clock, AuditService audit) {
         this.users = users;
         this.sessions = sessions;
         this.memberships = memberships;
         this.jwt = jwt;
         this.passwords = passwords;
         this.clock = clock;
+        this.audit = audit;
         dummyHash = passwords.encode(UUID.randomUUID().toString());
     }
 
@@ -53,6 +56,7 @@ public class AdminSessionService {
         var now = clock.instant().truncatedTo(ChronoUnit.SECONDS);
         String token = jwt.issue(user.id().toString(), jti, now);
         sessions.insert(hash(jti), user.id(), now, now.plusSeconds(3600));
+        audit.success(AuditAction.ADMIN_LOGIN, user.id(), null, user.id().toString());
         // O proxy transacional confirma commit antes de entregar o resultado ao controller.
         return Map.of("access_token", token, "token_type", "Bearer", "expires_in", 3600);
     }
@@ -75,6 +79,7 @@ public class AdminSessionService {
     @Transactional
     public void logout(AdminPrincipal principal) {
         sessions.revoke(principal.sessionHash(), principal.userId(), clock.instant());
+        audit.success(AuditAction.ADMIN_LOGOUT, principal.userId(), null, principal.userId().toString());
     }
 
     public static String hash(String value) {

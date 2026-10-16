@@ -1,5 +1,6 @@
 package br.com.clicklance.service;
 
+import br.com.clicklance.model.AuditAction;
 import br.com.clicklance.repository.AdminMembershipRepository;
 import br.com.clicklance.security.AdminPasswords;
 import br.com.clicklance.security.AdminPrincipal;
@@ -19,12 +20,14 @@ public class AdminAccountService {
     private final AdminMembershipRepository memberships;
     private final CompanyRepository companies;
     private final PasswordEncoder passwords;
+    private final AuditService audit;
     public AdminAccountService(AdminUserRepository users, AdminMembershipRepository memberships,
-                         CompanyRepository companies, PasswordEncoder passwords) {
+                         CompanyRepository companies, PasswordEncoder passwords, AuditService audit) {
         this.users = users;
         this.memberships = memberships;
         this.companies = companies;
         this.passwords = passwords;
+        this.audit = audit;
     }
 
     @Transactional
@@ -37,10 +40,12 @@ public class AdminAccountService {
         if (existing.isPresent()) {
             var user = existing.get();
             if (!user.platformAdmin() || !user.active()) throw new ApiException(409, "IDENTITY_CONFLICT");
+            audit.success(AuditAction.ADMIN_BOOTSTRAP, null, null, user.id().toString());
             return user.id(); // Nao troca senha, reativa ou promove uma identidade existente.
         }
         UUID id = UUID.randomUUID();
         users.insertPlatformAdmin(id, email, passwords.encode(password));
+        audit.success(AuditAction.ADMIN_BOOTSTRAP, null, null, id.toString());
         return id;
     }
 
@@ -59,6 +64,7 @@ public class AdminAccountService {
         if (!user.active()) throw new ApiException(409, "IDENTITY_CONFLICT");
         // Repetir mantem senha e estado do vinculo; reativacao exige operacao propria.
         memberships.insertIfAbsent(user.id(), empresaId);
+        audit.success(AuditAction.COMPANY_ADMIN_PROVISION, operator.userId(), empresaId, user.id().toString());
         return user.id();
     }
 

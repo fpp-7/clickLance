@@ -1,6 +1,6 @@
 # Backend — sprints e histórias de implementação
 
-Atualizado em 15/10/2026. BE-001–005 entregues para revisão; BE-006 em diante aguardam as dependências correspondentes. Piloto gratuito com biblioteca, pagamentos depois.
+Atualizado em 16/10/2026. BE-001–012 entregues para revisão; BE-013 em diante aguardam as dependências e decisões correspondentes. Piloto gratuito com biblioteca, pagamentos depois.
 
 Este é o único backlog do backend. As histórias referenciam o [catálogo de requisitos](requisitos_e_regras_mvp.md), as [decisões D01–D14](overview_backend_refinamento.md#3-o-que-falta-e-quando-precisa-estar-resolvido), as [diretrizes de dados](modelagem_banco_de_dados.md) e o [contrato cloud v1](contrato_cloud_gateway_v1.md). Não copiar payloads ou DDL para este arquivo. Os IDs `US-01–12` do catálogo são referências anteriores; os IDs executáveis deste plano são `BE-001–031`.
 
@@ -10,7 +10,7 @@ Uma história por tarefa. Escolher a primeira elegível na ordem abaixo; conclui
 
 **Arquitetura adotada:** [Model–Controller–Service–Repository](arquitetura_backend.md), em um único módulo Spring Boot, com pacotes por camada diretamente em `br.com.clicklance`: `model`, `controller`, `service` e `repository`, além dos auxiliares `config`, `security`, `exception`, `validation` e `cli`. Aplica-se a todas as histórias: dados nos models, HTTP nos controllers, regras/autorização/transações nos services e SQL nos repositories. Os objetivos, dependências e aceites funcionais permanecem válidos; não é necessário reescrever as fichas para essa separação técnica.
 
-**Adequação técnica BE-001–005 (15/10/2026), para revisão:** todo o código Java foi reorganizado por camada; contratos e migrations preservados. `clean verify` com perfil `integration` aprovou 22 testes PostgreSQL/HTTP e 12 verificações unitárias/arquiteturais; 10 verificações de contrato e 31 perfis HTTP contra o gateway aprovados. JAR inspecionado sem classes nos pacotes antigos. Evidências em `backend/target/layers-verification.log` e no [guia de arquitetura](arquitetura_backend.md). BE-006 permanece como próximo recorte.
+**Adequação técnica BE-001–005 (15/10/2026), para revisão:** todo o código Java foi reorganizado por camada; contratos e migrations preservados. `clean verify` com perfil `integration` aprovou 22 testes PostgreSQL/HTTP e 12 verificações unitárias/arquiteturais; 10 verificações de contrato e 31 perfis HTTP contra o gateway aprovados. JAR inspecionado sem classes nos pacotes antigos. Evidências históricas em `backend/target/layers-verification.log` e no [guia de arquitetura](arquitetura_backend.md). BE-006 foi implementada depois, seguindo o mesmo padrão.
 
 | Estado | Critério |
 |---|---|
@@ -21,7 +21,7 @@ Uma história por tarefa. Escolher a primeira elegível na ordem abaixo; conclui
 | Em revisão | Implementação e verificações disponíveis para revisão. |
 | Concluída | Aceites e verificações passaram; resultado revisado e integrado. |
 
-**Fila atual:** BE-001–004 continuam como base entregue para revisão; BE-005 foi implementada sobre essa base por solicitação de continuidade e está em revisão com as evidências abaixo. BE-006 é o próximo recorte de implementação após revisão/integração das dependências. As demais histórias aguardam implementações e decisões ainda abertas quando indicadas. Não criar endpoints fictícios, bypass de autorização ou políticas silenciosas para declarar uma história concluída.
+**Fila atual:** BE-001–012 estão entregues para revisão, com as evidências dos recortes abaixo. BE-013 é o próximo recorte, condicionado à definição de D12 para jogador/email/recuperação e à revisão das dependências. As demais histórias aguardam implementações e decisões ainda abertas quando indicadas. Não criar endpoints fictícios, bypass de autorização ou políticas silenciosas para declarar uma história concluída.
 
 Cada ficha abaixo define **objetivo**, **dependências/decisões**, **escopo**, **aceite**, **verificação** e **referências**. Os caminhos são relativos à raiz do repositório. Versões e comandos foram fixados em BE-001; a estrutura atual segue o [guia de arquitetura](arquitetura_backend.md). As fichas referem-se a funcionalidades, cujas classes ficam nos pacotes por camada do mesmo módulo Maven.
 
@@ -120,6 +120,8 @@ Sprints posteriores permanecem condicionadas às decisões indicadas. A autoriza
 
 - **Objetivo:** como administrador autorizado, vincular um botão à quadra e obter uma credencial própria.
 - **Depende de:** BE-005; D10 e política de emissão de BE-002.
+- **Estado atual:** em revisão (16/10/2026). Cadastro, listagem por quadra e consulta por ID global implementados nas camadas `model/controller/service/repository`. V5 acrescenta ID CL1 global, FK para quadra, hash obrigatório/único e proteção contra renomeação/realocação. Token seguro exibido somente no 201 após commit, com `no-store`; bucket limitado pela configuração do servidor. Serviço de autenticação reutilizável valida ID+token e estado dos três níveis, sem antecipar rotas BE-008/011.
+- **Evidências:** build `mvnw.cmd -B -ntp -Pintegration '-Ddebug=false' verify` aprovado com 43 testes (30 PostgreSQL/HTTP, 11 regras arquiteturais e 2 unitários), sem ignorados. Os 8 `DeviceIT` cobrem consulta sem segredo, autorização A/B, pais contraditórios, entradas inválidas sem escrita parcial, duplicação concorrente/global, paginação, autenticação cruzada, inativação/revogação no banco e constraints reais. Teste unitário impede emissão sem buckets aprovados. Validador Python aprovou 11 verificações de contrato, 31 perfis HTTP contra o gateway e 3 respostas de dispositivos contra a OpenAPI; fixtures sem tokens/hashes. V4→V5 aplicada e validada sem reaplicação. A primeira tentativa falhou nos sockets locais do JDK; a suíte completa passou com `jdk.net.unixdomain.tmpdir` no diretório de build, conforme README. Log em `backend/target/be006-verification.log`; PostgreSQL 17.11 real temporário em loopback. Sem alteração de firmware/gateway, AWS, rotação, configuração remota ou ingestão nesta história.
 - **Escopo:** cadastro/consulta de dispositivo, geração de token seguro, hash no banco e autenticação do dispositivo reutilizável por configuração/ingestão.
 - **Aceite:** ID globalmente único e compatível com CL1; token exibido somente na emissão; credencial A não autentica B; vínculo com quadra/empresa coerente conforme D10. Consulta não devolve token ou hash; ausência/erro de credencial não autoriza operação.
 - **Verificação:** unicidade e vínculo no PostgreSQL, autorização entre empresas, hash versus segredo e autenticação cruzada. Provisionamento informa como configurar ID da quadra e bucket no gateway: v1 não altera esses campos remotamente.
@@ -130,6 +132,8 @@ Sprints posteriores permanecem condicionadas às decisões indicadas. A autoriza
 
 - **Objetivo:** como operador, identificar ator, recurso e resultado de uma ação sem expor credenciais.
 - **Depende de:** BE-003–006.
+- **Estado atual:** em revisão (16/10/2026). V6 e camadas de auditoria implementadas. Cadastros e operações administrativas gravam sucesso na mesma transação; logs só depois do commit. Recusas HTTP administrativas são persistidas separadamente, com correlação gerada pelo servidor e sem payloads/credenciais. Consulta por empresa exige vínculo; consulta por correlação exige plataforma. Erros de filtros e MVC compartilham envelope seguro, incluindo falhas inesperadas. Configuração/ingestão v1 não foram antecipadas.
+- **Evidências:** `clean verify` com perfil `integration` aprovou 54 testes Java (38 PostgreSQL/HTTP, 11 regras arquiteturais e 5 unitários), sem ignorados. Os 8 `AuditIT` exercitam sucesso/recusa, isolamento A/B, paginação, callbacks após commit, rollback de empresa/quadra/dispositivo quando a auditoria falha, falha na gravação de recusa e ausência de segredos nos registros/logs. Testes unitários cobrem erro inesperado no filtro e envelope seguro de 500/503. O validador Python aprovou 12 verificações de contrato, 2 respostas HTTP de auditoria, 3 de dispositivos e os 31 perfis de captura. V5→V6 aplicada e validada sem reaplicação; V1–V5 preservadas. Usado o ajuste de sockets do JDK Windows descrito no README; build limpo evitou classes temporárias do IDE. Evidências em `backend/target/be007-verification.log` e relatórios Surefire/Failsafe. Sem alteração funcional de gateway/firmware/frontend ou homologação AWS/hardware.
 - **Escopo:** registro de auditoria e correlação, formato de erro e consulta administrativa mínima por escopo. Aplicar aos cadastros entregues; histórias seguintes reutilizam o mecanismo.
 - **Aceite:** criação de empresa/quadra/dispositivo é rastreável; recusas relevantes têm correlação; token, senha e URL de câmera com credencial não entram em logs/erros. Falha na auditoria de ação crítica não é ocultada como sucesso auditado. Fixar em OpenAPI o formato de erro, sem mudar códigos v1.
 - **Verificação:** ação permitida/negada e captura de saída sem segredos; consulta de auditoria de B negada a A.
@@ -142,6 +146,7 @@ Sprints posteriores permanecem condicionadas às decisões indicadas. A autoriza
 
 - **Objetivo:** como gateway, obter configuração válida para meu dispositivo autenticado.
 - **Depende de:** BE-005–007; D08 para a resposta de origem inativa.
+- **Estado atual:** em revisão (16/10/2026). Publicação administrativa com versão opaca, base otimista, autor/instante, histórico V7 e auditoria atômica. Entrega autenticada v1 exata; merge validado com perfil da quadra, cache e parâmetros da instalação. Testes HTTP cobrem tenant, segredo, publicação concorrente 201/409, versão inválida, rollback e pais inativos; resposta consumida por RemoteConfig real em BE-012.
 - **Escopo:** publicação administrativa versionada e `GET /api/v1/dispositivos/{id}/config`; validar as chaves/faixas a partir de `gateway_captura/src/remote_config.py`.
 - **Aceite:** raiz contém exatamente `version`, `active`, `settings`; dispositivo não consulta outro; versão publicada tem autor/instante; versão inválida não substitui a válida; segredos só são entregues ao contexto autorizado. Não incluir campos raiz extras. Documentar que omitir chave não a remove do cache e que quadra/bucket exigem provisionamento local no cliente atual.
 - **Verificação:** resposta consumida pelo validador/aplicador real do gateway com substitutos locais; revisão do caso inativo sem reescrever configuração dos eventos pendentes.
@@ -152,6 +157,7 @@ Sprints posteriores permanecem condicionadas às decisões indicadas. A autoriza
 
 - **Objetivo:** como sistema, manter um registro único do evento e sua referência de objeto.
 - **Depende de:** BE-006; D04–D06,D10 e recorte temporal D13 de BE-002.
+- **Estado atual:** em revisão (16/10/2026). V8 implementa identidade global e objeto únicos, FKs compostas de origem, instantes, política snapshot e expiração de dias de 24h. Trigger protege campos imutáveis; chegada vencida é marcada. PostgreSQL real verifica duplicação, origem contraditória, retenção imutável e ingestão simultânea.
 - **Escopo:** migration e persistência de evento/lance, origem, instantes, bucket/chave/checksum, expiração e política aplicada. Criar restrições de unicidade de evento/objeto e coerência da origem, e índices necessários ao recorte.
 - **Aceite:** banco rejeita duplicação de evento/objeto e origem contraditória; timestamps preservam instante original; política/expiração não mudam no reenvio; chegada já expirada segue D05 sem publicar silenciosamente.
 - **Verificação:** inserts conflitantes e simultâneos no PostgreSQL real, round-trip temporal e invariantes da migration. Não usar apenas H2 para comprovar constraints/concorrência de PostgreSQL.
@@ -162,6 +168,7 @@ Sprints posteriores permanecem condicionadas às decisões indicadas. A autoriza
 
 - **Objetivo:** como sistema, registrar somente objetos autorizados e verificáveis para a origem autenticada.
 - **Depende de:** BE-006,009; estratégia de verificação de objeto definida em BE-002.
+- **Estado atual:** em revisão (16/10/2026). ObjectStorageService usa SDK S3 2.56.0 com timeout e configuração externa. Confere origem/bucket/chave antes do SDK, HEAD/tamanho/metadata e SHA-256 dos bytes via GET, fixando VersionId ou If-Match. HTTP S3 local exercita SDK real: ausência, IAM negado, 429/5xx, alteração concorrente, bytes/metadata divergentes, objeto vazio e versão; timeout coberto por falha de transporte controlada. Sem upload/delete e sem homologação AWS.
 - **Escopo:** porta de storage e adaptador configurável para consultar o objeto autorizado; validar bucket permitido, chave estável vinculada ao dispositivo/evento, existência e integridade conforme a estratégia escolhida. Desenvolver com substituto local e isolar o adaptador externo.
 - **Aceite:** origem A não consulta nem associa objeto B; não seguir URL arbitrária do payload; mismatch é conflito/entrada inválida conforme contrato; dependência transitória gera erro retentável. Não chamar metadata coincidente de prova integral dos bytes ou de validade do vídeo. Definir ausência definitiva versus falha transitória sem usar 404 terminal por conveniência.
 - **Verificação:** origem cruzada, checksum divergente, objeto ausente, timeout e permissão negada; verificar chamadas ao storage e ausência de deleção/upload por este recorte.
@@ -172,6 +179,7 @@ Sprints posteriores permanecem condicionadas às decisões indicadas. A autoriza
 
 - **Objetivo:** como gateway, registrar o mesmo evento quantas vezes for necessário sem criar duplicatas.
 - **Depende de:** BE-007–010; D05,D06,D08,D13 aplicáveis resolvidas.
+- **Estado atual:** em revisão (16/10/2026). POST /api/v1/replays confirma após commit com ACK v1, 201 novo/200 idêntico/409 divergente. Reenvio compara instante e campos imutáveis antes de storage, inclusive após purga simulada. Testes PostgreSQL/HTTP demonstram duas requisições convergentes, eventos próximos distintos, inativação, snapshot, chegada vencida, futuro 300/301s e falha real adiada no commit sem ACK prematuro.
 - **Escopo:** `POST /api/v1/replays` e OpenAPI correspondente, respeitando o contrato v1. Autenticar, validar chave/corpo, localizar evento existente antes de exigir objeto novo e confirmar após commit.
 - **Aceite:** primeiro registro confirma 201; repetição idêntica confirma 200 com mesma identidade/checksum; mesmo ID com conteúdo imutável divergente retorna 409. `Idempotency-Key` coincide com `evento_id`; quadra declarada coincide com origem autenticada. Corrida entre duas requisições converge pela constraint, sem erro 500 espúrio. Repetição de registro já purgado não recria arquivo/prazo nem falha apenas pela ausência legítima do objeto. Aplicar autorização/inativação definida antes de devolver confirmação.
 - **Verificação:** concorrência real no PostgreSQL, divergência de campos, payload inválido, evento próximo com ID distinto, commit com resposta perdida, reenvio após purga simulada e falha transitória do storage. Sucesso nunca antecede commit durável.
@@ -182,11 +190,14 @@ Sprints posteriores permanecem condicionadas às decisões indicadas. A autoriza
 
 - **Objetivo:** como responsável pela entrega, comprovar configuração e ingestão pelo cliente existente.
 - **Depende de:** BE-008,011.
+- **Estado atual:** em revisão (16/10/2026). GatewayIntegrationIT inicia backend HTTP/PostgreSQL e storage HTTP substituído, executando CloudGateway.register e RemoteConfig.refresh/apply originais em subprocesso Python. Config/cache, inativação, 201 com resposta perdida seguido de 200 e uma linha, conflito terminal e objeto ausente retentável aprovados. Sem alteração funcional do gateway; câmera/Arduino/AWS não exercitados.
 - **Escopo:** cenário local reproduzível com backend real e PostgreSQL, usando `CloudGateway.register` e `RemoteConfig` do gateway. Storage pode ser substituído explicitamente; não exigir câmera/Arduino para este teste. Registrar comandos e resultado no README do backend.
 - **Aceite:** cliente aceita config/ACK, repete após resposta perdida com um registro e trata conflito/erro retentável conforme v1. Caminho de produção do gateway não é alterado para contornar incompatibilidade do backend.
 - **Verificação:** executar o cenário em processo real e inspecionar quantidade/identidade persistida. Distinguir contrato local aprovado de integração AWS/hardware pendente.
 - **Fora do escopo:** piloto aprovado, medidas de imagem e alteração funcional do Edge.
 - **Referências:** RF-MVP-04–08; RNF-MVP-05,11; contrato cloud v1.
+
+**Evidência conjunta BE-008–012 (16/10/2026):** `clean verify -Pintegration` aprovou 65 testes Java (48 PostgreSQL/HTTP, 11 regras arquiteturais e 6 unitários), sem falhas ou ignorados. 12 verificações de contrato, 31 perfis de captura e 9 respostas HTTP reais aprovados pelos comandos do README. V7/V8 aplicadas e depois validadas sem reaplicação; V1–V6 intactas. Relatórios locais descartáveis em `backend/target/be008-012-verification.log`, Surefire/Failsafe e `be012-gateway-result.txt`. Código e procedimento no [README do backend](../backend/README.md#configuração-e-ingestão-do-gateway-be-008012). AWS, vídeo real e piloto permanecem pendentes.
 
 ## 5. Sprint 3 — Conta, descoberta e reprodução
 

@@ -2,7 +2,8 @@ package br.com.clicklance.config;
 
 import br.com.clicklance.security.AdminBearerFilter;
 import br.com.clicklance.service.AdminSessionService;
-import br.com.clicklance.exception.ApiErrors;
+import br.com.clicklance.exception.ApiErrorResponder;
+import br.com.clicklance.security.CorrelationFilter;
 
 import jakarta.servlet.DispatcherType;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
@@ -19,7 +20,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class AdminSecurity {
     @Bean
-    SecurityFilterChain administrativeSecurity(HttpSecurity http, AdminSessionService sessions) throws Exception {
+    SecurityFilterChain administrativeSecurity(HttpSecurity http, AdminSessionService sessions, ApiErrorResponder errors) throws Exception {
         return http.csrf(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable).formLogin(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable).requestCache(AbstractHttpConfigurer::disable)
@@ -28,12 +29,15 @@ public class AdminSecurity {
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/admin/sessoes").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/dispositivos/*/config").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/replays").permitAll()
                         .requestMatchers("/api/v1/admin/**").authenticated()
                         .anyRequest().denyAll())
-                .exceptionHandling(errors -> errors
-                        .authenticationEntryPoint((req, res, ex) -> ApiErrors.write(res, 401, "UNAUTHENTICATED"))
-                        .accessDeniedHandler((req, res, ex) -> ApiErrors.write(res, 403, "FORBIDDEN")))
-                .addFilterBefore(new AdminBearerFilter(sessions), UsernamePasswordAuthenticationFilter.class)
+                .exceptionHandling(handling -> handling
+                        .authenticationEntryPoint((req, res, ex) -> errors.write(req, res, 401, "UNAUTHENTICATED"))
+                        .accessDeniedHandler((req, res, ex) -> errors.write(req, res, 403, "FORBIDDEN")))
+                .addFilterBefore(new AdminBearerFilter(sessions, errors), UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(new CorrelationFilter(), AdminBearerFilter.class)
                 .build();
     }
 }
