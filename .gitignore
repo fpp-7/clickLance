@@ -1,0 +1,7 @@
+backend_cloud/target/
+backend_cloud/.m2/
+backend_cloud/.env
+backend_cloud/data/
+.tools/
+**/__pycache__/
+**/*.pyc

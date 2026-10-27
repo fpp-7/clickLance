@@ -1,0 +1,14 @@
+# Somente desenvolvimento local. Este perfil limita a API ao loopback.
+server:
+  address: 127.0.0.1
+spring:
+  datasource:
+    password: ${DATABASE_PASSWORD:local-only-password}
+clicklance:
+  security:
+    admin-token: ${ADMIN_TOKEN:admin-local-only-01234567890123456789}
+    jwt-secret: ${JWT_SECRET:jwt-local-only-0123456789012345678901}
+  storage:
+    mode: local
+    local-directory: ${LOCAL_STORAGE_DIR:data/videos}
+    signing-secret: ${LOCAL_STORAGE_SECRET:storage-local-only-012345678901234567}

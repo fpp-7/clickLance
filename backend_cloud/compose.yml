@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: clicklance
+      POSTGRES_USER: clicklance
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?Defina DATABASE_PASSWORD no ambiente ou .env}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clicklance -d clicklance"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+  api:
+    profiles: ["api"]
+    build: .
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/clicklance
+      DATABASE_USER: clicklance
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:?Defina DATABASE_PASSWORD}
+      # Validados pela API ao iniciar; não impedir subir somente o banco local.
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      JWT_SECRET: ${JWT_SECRET:-}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME:-}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      PURGE_ENABLED: ${PURGE_ENABLED:-true}
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+volumes:
+  postgres_data:

@@ -1,105 +1,52 @@
-"""
-serial_listener.py — Escuta a porta serial do Arduino.
-
-Quando recebe a mensagem "Botao foi Pressionado!", registra o timestamp
-e coloca o evento numa Queue thread-safe. Nunca bloqueia o processamento.
-
-Inclui debounce de software para ignorar bounces elétricos do botão
-(múltiplas mensagens em milissegundos para um único clique físico).
-"""
-
+"""Serial producer persists a click before considering it accepted."""
+import shutil
+import threading
 import time
-from queue import Queue
-
 import serial
-
 from .config import Config
 from .logger import logger
-
-# Mensagem esperada do Arduino
 TRIGGER_MESSAGE = "Botao foi Pressionado!"
 
-# Tempo mínimo entre dois cliques válidos (em segundos).
-# Ignora bounces elétricos e cliques acidentais muito rápidos.
-DEBOUNCE_SECONDS = 5
-
-
 class SerialListener:
-    """Produtor: escuta a serial e enfileira eventos de clique."""
+    def __init__(self,store,dvr):
+        self.store,self.dvr = store,dvr
+        self._stop_event = threading.Event()
+        self._last_trigger = float("-inf")
 
-    def __init__(self, event_queue: Queue) -> None:
-        self.queue = event_queue
-        self.port: str = Config.SERIAL_PORT
-        self.baud_rate: int = Config.BAUD_RATE
-        self._running = True
-        self._last_trigger_time: float = 0.0  # Controle de debounce
+    def accept_click(self,timestamp=None,monotonic=None):
+        now = time.time() if timestamp is None else timestamp
+        tick = time.monotonic() if monotonic is None else monotonic
+        if tick-self._last_trigger<Config.COOLDOWN_SECONDS:
+            return None
+        before = Config.SEGMENT_DURATION_SECONDS*Config.SEGMENTS_TO_CONCAT
+        with self.dvr._filesystem_lock:
+            if not self.dvr.ready_for_click(now,before):
+                logger.warning("Clique nao aceito: camera indisponivel ou buffer aquecendo.")
+                return None
+            if shutil.disk_usage(Config.SEGMENTS_DIR).free<Config.MIN_FREE_DISK_MB*1024*1024:
+                logger.error("Clique nao aceito: reserva de disco atingida.")
+                return None
+            event_id = self.store.enqueue(now,dispositivo_id=Config.DISPOSITIVO_ID,quadra_id=Config.QUADRA_ID,before=before,after=Config.CLIP_AFTER_SECONDS)
+        self._last_trigger = tick
+        logger.info("Clique aceito e persistido: %s; pendentes=%d",event_id,self.store.count_pending())
+        return event_id
 
-    def start_listening(self) -> None:
-        """
-        Loop bloqueante que lê a porta serial.
-        Deve rodar na Thread Principal ou em uma Thread dedicada.
-        """
-        self._running = True
-        connection: serial.Serial | None = None
-
-        while self._running:
+    def start_listening(self):
+        while not self._stop_event.is_set():
             try:
-                logger.info("Serial: Conectando em %s @ %d baud...", self.port, self.baud_rate)
-                connection = serial.Serial(self.port, self.baud_rate, timeout=1)
+                with serial.Serial(Config.SERIAL_PORT,Config.BAUD_RATE,timeout=1) as connection:
+                    if self._stop_event.wait(2):
+                        break
+                    while not self._stop_event.is_set():
+                        line = connection.readline().decode("utf-8",errors="replace").strip()
+                        if line==TRIGGER_MESSAGE:
+                            try:
+                                self.accept_click()
+                            except Exception:
+                                logger.exception("Clique nao aceito; falha na persistencia.")
+            except serial.SerialException:
+                logger.exception("Serial indisponivel; reconexao em cinco segundos.")
+                self._stop_event.wait(5)
 
-                # O Arduino reseta ao abrir a serial — aguardamos estabilizar
-                time.sleep(2)
-                logger.info("Serial: Conectado! Aguardando cliques do botão...")
-
-                while self._running:
-                    if connection.in_waiting > 0:
-                        raw_line = connection.readline()
-                        line = raw_line.decode("utf-8", errors="ignore").strip()
-
-                        if not line:
-                            continue
-
-                        logger.debug("Serial: Recebido → '%s'", line)
-
-                        if line == TRIGGER_MESSAGE:
-                            now = time.time()
-                            elapsed = now - self._last_trigger_time
-
-                            # DEBOUNCE: ignora cliques dentro da janela de cooldown
-                            if elapsed < DEBOUNCE_SECONDS:
-                                logger.debug(
-                                    "Serial: Bounce ignorado (%.1fs desde o último clique válido, "
-                                    "cooldown=%ds).",
-                                    elapsed,
-                                    DEBOUNCE_SECONDS,
-                                )
-                                continue
-
-                            self._last_trigger_time = now
-                            self.queue.put({"timestamp": now})
-                            logger.info(
-                                "Serial: ✅ BOTÃO PRESSIONADO! Evento enfileirado. "
-                                "Fila contém %d evento(s) pendente(s).",
-                                self.queue.qsize(),
-                            )
-
-            except serial.SerialException as exc:
-                logger.error("Serial: Erro de conexão → %s", exc)
-                logger.info("Serial: Tentando reconectar em 5 segundos...")
-                time.sleep(5)
-
-            except Exception as exc:
-                logger.error("Serial: Erro inesperado → %s", exc)
-                time.sleep(5)
-
-            finally:
-                if connection and connection.is_open:
-                    connection.close()
-                    logger.debug("Serial: Porta fechada.")
-
-        logger.info("Serial: Listener finalizado.")
-
-    def stop(self) -> None:
-        """Sinaliza para o loop de escuta encerrar."""
-        self._running = False
-
+    def stop(self):
+        self._stop_event.set()

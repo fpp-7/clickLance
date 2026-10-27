@@ -1,0 +1,41 @@
+spring:
+  application:
+    name: clicklance-cloud
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/clicklance}
+    username: ${DATABASE_USER:clicklance}
+    password: ${DATABASE_PASSWORD}
+  flyway:
+    enabled: true
+  jackson:
+    time-zone: UTC
+server:
+  error:
+    include-message: never
+    include-stacktrace: never
+  shutdown: graceful
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+clicklance:
+  security:
+    admin-token: ${ADMIN_TOKEN}
+    jwt-secret: ${JWT_SECRET}
+    jwt-ttl-seconds: 86400
+  storage:
+    mode: ${STORAGE_MODE:s3}
+    bucket: ${S3_BUCKET_NAME:}
+    region: ${AWS_REGION:us-east-1}
+    endpoint: ${S3_ENDPOINT:}
+    path-style-access: ${S3_PATH_STYLE:false}
+    max-bytes: 524288000
+    playback-ttl-seconds: 300
+  purge:
+    enabled: ${PURGE_ENABLED:true}
+    delay-ms: 60000
+    batch-size: 100

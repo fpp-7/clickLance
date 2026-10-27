@@ -1,5 +1,7 @@
 # 🗄️ ClickLance — Modelagem do Banco de Dados (PostgreSQL)
 
+> **Modelagem inicial; não executar o DDL abaixo como migration vigente.** O schema implementado está em [V1__init_schema.sql](../backend_cloud/src/main/resources/db/migration/V1__init_schema.sql). Ele acrescenta evento UUID, coerência de origem, fuso e retry de purga; não persiste URLs de reprodução. O [contrato vigente](contrato_api_mvp.md) documenta as decisões posteriores. Pagamentos continuam fora do MVP e podem exigir evolução do modelo.
+
 > Documento de arquitetura de dados e engenharia de banco de dados para o Backend Cloud do **ClickLance (MVP)**.  
 > Baseado nas especificações formais de [Requisitos e Regras de Negócio](requisitos_e_regras_mvp.md).
 

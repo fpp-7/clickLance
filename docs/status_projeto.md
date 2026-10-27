@@ -1,47 +1,73 @@
-# Status do Projeto: Gateway de Captura (Edge)
+# Status do projeto — implementação e revisão das sprints
 
-Este documento registra o que já foi implementado no módulo local (Edge) do ClickLance e quais são os próximos passos de todo o ecossistema.
+Execução iniciada em 26/10/2026. Este documento descreve o estado implementado, substituindo o checklist anterior de protótipo. O [contrato vigente](contrato_api_mvp.md) e as migrations em `backend_cloud/src/main/resources/db/migration/` são as referências para integração.
 
-## ✅ O que já foi feito (Concluído)
+## Sprints do backend
 
-1. **Estruturação do Projeto Edge**
-   - Criação da pasta `gateway_captura` com organização limpa (arquitetura MVC-like).
-   - Definição do arquivo `requirements.txt` com as dependências do Python.
-   - Configuração dinâmica de variáveis de ambiente via `python-dotenv` (`.env`).
+| Sprint | Histórias | Entrega | Estado |
+|---|---|---|---|
+| 1 | US-01 a US-04 | Cadastros protegidos, credencial hash por dispositivo e configuração remota | Implementada; testes e revisão concluídos |
+| 2 | US-05 | Ingestão, identidade estável, validação da key e retentativa concorrente | Implementada; testes e revisão concluídos |
+| 3 | US-06 a US-08 | Quadras, grade com fuso/paginação, detalhe e reprodução temporária | Implementada; testes e revisão concluídos |
+| 4 | US-09 a US-12 | Conta/JWT, biblioteca isolada por usuário, expiração e purga com retry | Implementada; testes e revisão concluídos |
 
-2. **Arquitetura Multithreading em Python**
-   - **DVR Manager (`src/dvr_manager.py`)**: Implementado a gravação contínua segmentada. Substituímos a gravação de um arquivo único pesado pelo `ffmpeg -f segment`, que divide o vídeo em pedaços de 60 segundos (HLS like). Isso evita corrompimento de vídeo. Também adicionamos uma rotina de limpeza para liberar espaço no disco após X horas.
-   - **Serial Listener (`src/serial_listener.py`)**: Leitor assíncrono do Arduino. Implementamos um sistema de **Debounce de 5 segundos** para evitar cortes duplicados causados por bounce elétrico do botão físico.
-   - **Video Processor (`src/video_processor.py`)**: Worker que junta os últimos 2 minutos de vídeo de forma nativa e rápida (sem re-encoding) através do demuxer `concat` do FFmpeg.
+A revisão independente está em [revisao_sprints_2026-10-26.md](revisao_sprints_2026-10-26.md). A implementação usa Spring Boot 4.1.2, Java 21 e JDBC com transações explícitas, em vez do Spring Data JPA sugerido no levantamento. PostgreSQL/Flyway foram mantidos.
 
-3. **Integrações com Cloud**
-   - Implementação da classe `S3Uploader` (via `boto3`) preparada para jogar o vídeo para a nuvem da AWS.
-   - Implementação da notificação HTTP POST (via `requests`) preparada para alertar a API Cloud (Spring Boot) sobre o novo lance criado.
+## Correções incorporadas do review inicial
 
-4. **Ferramenta de Testes**
-   - Criação do `test_pipeline.py`, um script autônomo que permite diagnosticar o hardware local (FFmpeg e Webcam) e simular os cliques do botão e os cortes dos vídeos de forma visual, sem necessitar de internet, AWS ou da API ligada.
+- Recorte orientado ao timestamp original, incluindo o segmento do clique quando finalizado.
+- Nomes de sessão únicos, proteção de segmentos de eventos pendentes e detecção de lacunas.
+- Outbox SQLite, checkpoints, workers separados e preservação do clipe até confirmação.
+- Contrato Edge/backend alinhado: dispositivo/token, UUID estável e key determinística.
+- Idempotência por `evento_id`, substituindo proximidade de cinco segundos como identidade.
+- Objetos privados e links temporários; expiração aplicada também na consulta individual.
+- Lock compartilhado entre salvamento e reivindicação de purga; I/O fora da transação.
+- Intenção de purga e próximo retry persistidos; lances salvos/falhas antigas não bloqueiam o restante do lote.
+- FK composta para coerência dispositivo/quadra e unicidade do objeto.
+- Configuração com limites comuns no gateway e no backend, fuso IANA e timestamps com offset.
+- Administração fechada por segredo global e conta de jogador sem permissão administrativa.
 
----
+## Evidência e limites
 
-## 🚀 Próximos Passos (Backlog)
+A suíte foi executada contra PostgreSQL 17.7 real em cluster descartável, além dos testes de storage local/S3 simulado e do gateway com vídeo sintético. Os runners ficam em `backend_cloud/scripts/` e os resultados por classe em `backend_cloud/target/surefire-reports/` após execução.
 
-### 1. Infraestrutura Cloud (AWS)
-- [ ] Criar uma conta/bucket na **AWS S3** dedicado aos lances do ClickLance.
-- [ ] Configurar as permissões (Bucket Policy) para que os vídeos fiquem acessíveis de forma pública (ou via CloudFront) para os jogadores assistirem.
-- [ ] Gerar as chaves de acesso (IAM `AWS_ACCESS_KEY_ID` e `AWS_SECRET_ACCESS_KEY`) e configurar no `.env` do PC local.
+Resultado final:
 
-### 2. Backend Cloud (Java / Spring Boot)
-- [x] Especificação formal de Requisitos Funcionais (RF), Regras de Negócio (RN) e Requisitos Não-Funcionais (RNF) em [`docs/requisitos_e_regras_mvp.md`](requisitos_e_regras_mvp.md).
-- [x] Modelagem do banco de dados relacional (PostgreSQL) e script DDL completo em [`docs/modelagem_banco_de_dados.md`](modelagem_banco_de_dados.md).
-- [x] Planejamento de Sprints (US-01 a US-12) e especificação completa de contratos de API REST para Frontend e Edge em [`docs/historias_de_usuario_e_endpoints.md`](historias_de_usuario_e_endpoints.md).
-- [ ] Inicializar o projeto Spring Boot (Maven, dependências, Flyway migrations e Docker Compose).
-- [ ] Desenvolver a API de ingestão (`POST /api/v1/replays`) com autenticação via `X-Device-Token` e idempotência de 5s.
-- [ ] Desenvolver endpoint de sincronização de configurações para o Edge (`GET /api/v1/dispositivos/{id}/config`).
-- [ ] Desenvolver endpoint de consulta pública de lances por quadra, data e faixa horária.
-- [ ] Desenvolver cadastro/autenticação de usuários (JWT) e biblioteca "Meus Lances".
-- [ ] Desenvolver rotina agendada (Cron) para expiração pública e deleção física de vídeos órfãos no AWS S3.
+| Verificação | Resultado |
+|---|---|
+| Backend e storage, incluindo PostgreSQL real | 29 testes aprovados; zero falhas/erros/ignorados |
+| Gateway isolado, incluindo FFmpeg sintético | 21 testes aprovados |
+| Integração Python → API Java → PostgreSQL → MP4 privado | 1 teste aprovado em execução própria do smoke |
+| Concorrência de salvar/purgar e avanço de lotes | 2 testes incluídos na suíte PostgreSQL, aprovados |
+| Formatação dos diffs | Sem erro de whitespace |
 
-### 3. Melhorias no Gateway Edge (Avançado)
-- [ ] **Fila de Retentativas Remota**: Se a internet da quadra cair no momento do upload, o Python precisa guardar esse lance numa pasta/tabela local e tentar fazer o upload novamente (Retry) quando a internet voltar.
-- [ ] **Script de Auto-Start Windows**: Configurar um bat/serviço no Windows da quadra para garantir que o script `main.py` inicie sozinho caso o computador reinicie ou falte luz.
-- [ ] Gerar log rotativo na nuvem (Datadog/CloudWatch) para monitorar remotamente se alguma quadra parou de gravar.
+O smoke é opt-in e aparece como ignorado quando a suíte Python isolada roda sem servidor; foi executado separadamente com sucesso pelo runner `backend_cloud/scripts/smoke-gateway.ps1`. Os servidores temporários criados pelos runners foram encerrados.
+
+Nenhuma câmera/serial real, credencial de ambiente ou conta AWS foi usada. O SDK de S3 foi testado com substitutos controlados; não há bucket provisionado, CDN ou publicação externa confirmados. O Dockerfile e Compose foram preparados; o Docker Desktop estava sem engine ativa e a validação de banco foi feita pelo runner PostgreSQL independente.
+
+Não há evidência de SLA de cinco minutos ou gravação sem interrupções em operação comercial. A seleção temporal agora tem teste, mas o alinhamento do relógio ao vídeo da câmera real ainda precisa de calibração.
+
+## Gateway disponível
+
+- Sincronização autenticada e cache da última configuração válida para falha de transporte.
+- Instância única por fila SQLite, cooldown monotônico e rejeição de cliques sem buffer/disco.
+- Supervisão FFmpeg, logs por sessão e encerramento preservando trabalho.
+- Geração de clipe com recorte e nova codificação, formato de cor compatível e faststart.
+- Retry independente de upload/registro; erros permanentes bloqueados para correção administrativa.
+- CLI para inspecionar/recolocar eventos e fazer backup consistente do SQLite.
+- Supervisor PowerShell para Windows, sem instalar tarefa agendada automaticamente.
+
+Escopo: uma câmera/quadra por instância. O firmware permanece sem confirmação de aceite/captura no LCD. Um manifesto de sessão longa ainda cresce durante a sessão e deve ser acompanhado no piloto.
+
+## Próximas entregas
+
+1. **Piloto físico:** câmera/lente/iluminação, pinagem e proteção, calibração temporal, quedas de energia e capacidade de CPU/disco/rede.
+2. **Operação:** provisionamento AWS/IAM, backup/restauração, monitoramento remoto, alerta com responsável e atualização/rollback.
+3. **Produto:** pagador e hipótese comercial, limites/prazo de conservação, política de privacidade, publicação de imagens e atendimento de retirada.
+4. **Interface web:** busca, player, cadastro/login e biblioteca consumindo a API implementada.
+5. **Identidade:** recuperação de senha, verificação de e-mail, revogação/rotação e papéis administrativos por empresa.
+6. **Storage:** reconciliação de uploads órfãos, estratégia de versões/backup e remoção de conta/vínculos.
+7. **Expansão:** vários botões/câmeras por gateway e autenticação/protocolo físico de origem.
+8. **Pagamentos:** fora das quatro sprints atuais; requer definir compra, prévia e direitos/reembolso.
+
+A biblioteca gratuita preserva vídeos salvos no MVP; isso não deve ser divulgado como compromisso comercial de armazenamento perpétuo sem a política e o financiamento correspondentes.

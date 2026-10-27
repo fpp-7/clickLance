@@ -1,5 +1,7 @@
 # ⚽ ClickLance — Especificação de Requisitos e Regras de Negócio (Backend MVP)
 
+> **Planejamento inicial preservado como histórico.** As sprints já foram implementadas. Para integrar, use o [contrato vigente](contrato_api_mvp.md), o [status verificado](status_projeto.md) e as migrations do backend. Foram revisados, entre outros pontos, idempotência por evento UUID (em vez de 5 segundos), fluxo pós-upload sem atomicidade distribuída, S3 privado, precisão/fuso, JDBC e estados de purga recuperável. “Permanente” abaixo descreve a ideia inicial, não um prazo comercial validado.
+
 > Documento oficial de engenharia de software contendo os **Requisitos Funcionais (RF)**, **Regras de Negócio (RN)**, **Requisitos Não-Funcionais (RNF)** e **Modelo de Dados** para o desenvolvimento do Backend Cloud (Java / Spring Boot) do **ClickLance**.
 
 ---

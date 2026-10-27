@@ -26,3 +26,5 @@ build/
 # IDEs
 .vscode/
 .idea/
+state/
+test_work/

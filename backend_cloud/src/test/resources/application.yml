@@ -1,0 +1,19 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:clicklance;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=10000
+    username: sa
+    password: ""
+  flyway:
+    enabled: true
+clicklance:
+  security:
+    admin-token: admin-apenas-para-testes-0123456789012345
+    jwt-secret: jwt-apenas-para-testes-012345678901234567
+    jwt-ttl-seconds: 3600
+  storage:
+    mode: local
+    signing-secret: storage-apenas-para-testes-0123456789012
+    local-directory: target/test-videos
+    playback-ttl-seconds: 300
+  purge:
+    enabled: false

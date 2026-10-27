@@ -1,5 +1,7 @@
 # 📋 ClickLance — Histórias de Usuário (Sprints) e Especificação de APIs (Frontend & Edge)
 
+> **Planejamento original das sprints, agora implementadas e revisadas no backend.** Exemplos e alternativas deste documento foram consolidados no [contrato vigente](contrato_api_mvp.md). Consulte também o [status](status_projeto.md) e a [revisão das sprints](revisao_sprints_2026-10-26.md). Cadastros não são abertos; idempotência usa evento UUID; URLs são temporárias; listagens usam envelope/paginação. O frontend visual ainda não foi implementado.
+
 > Documento oficial de planejamento ágil e especificação de contratos de API REST para o Backend Cloud do **ClickLance (MVP)**.  
 > Derivado diretamente das especificações em [`docs/requisitos_e_regras_mvp.md`](requisitos_e_regras_mvp.md) e [`docs/modelagem_banco_de_dados.md`](modelagem_banco_de_dados.md).
 

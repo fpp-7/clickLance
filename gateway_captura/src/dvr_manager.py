@@ -1,167 +1,172 @@
-"""
-dvr_manager.py — Gravador Contínuo (DVR) com Segmentação FFmpeg.
-
-Responsabilidades:
-  1. Lançar o FFmpeg capturando a webcam via DirectShow (Windows).
-  2. Fatiar a gravação em segmentos de N segundos usando `-f segment`.
-  3. Rodar uma rotina de limpeza periódica que apaga segmentos mais velhos que X horas.
-"""
-
-import glob
-import os
+"""Supervised DVR; unique sessions and finalized CSV intervals anchor event windows."""
+import csv
+from dataclasses import dataclass
+import json
+from pathlib import Path
+import shutil
 import subprocess
 import threading
 import time
-
+from uuid import uuid4
 from .config import Config
 from .logger import logger
 
+@dataclass(frozen=True)
+class Segment:
+    path: str
+    start: float
+    end: float
+    session: str
+
+class WindowNotReady(RuntimeError):
+    pass
 
 class DVRManager:
-    """Gerencia a gravação contínua da câmera e a limpeza de disco."""
+    def __init__(self, store=None):
+        self.segments_dir = Config.SEGMENTS_DIR
+        self.segment_duration = Config.SEGMENT_DURATION_SECONDS
+        self.camera_name = Config.CAMERA_DEVICE_NAME
+        self.retention_hours = Config.RETENTION_HOURS
+        self.store = store
+        self._stop = threading.Event()
+        self._ffmpeg_process = None
+        self._active_session = None
+        Path(self.segments_dir).mkdir(parents=True, exist_ok=True)
+        self._filesystem_lock = threading.RLock()
 
-    def __init__(self) -> None:
-        self.segments_dir: str = Config.SEGMENTS_DIR
-        self.segment_duration: int = Config.SEGMENT_DURATION_SECONDS
-        self.camera_name: str = Config.CAMERA_DEVICE_NAME
-        self.retention_hours: float = Config.RETENTION_HOURS
+    def _command(self, folder):
+        return ["ffmpeg","-hide_banner","-loglevel","warning","-n","-f","dshow","-i",f"video={self.camera_name}","-an","-c:v","libx264","-preset","ultrafast","-tune","zerolatency","-pix_fmt","yuv420p","-g","30","-sc_threshold","0","-force_key_frames",f"expr:gte(t,n_forced*{self.segment_duration})","-f","segment","-segment_time",str(self.segment_duration),"-segment_list",str(folder/"segments.csv"),"-segment_list_type","csv","-reset_timestamps","1",str(folder/"seg_%08d.mp4")]
 
-        self._ffmpeg_process: subprocess.Popen | None = None
-        self._running = threading.Event()
-
-        # Garante que a pasta de segmentos existe
-        os.makedirs(self.segments_dir, exist_ok=True)
-
-    # ------------------------------------------------------------------
-    # GRAVAÇÃO
-    # ------------------------------------------------------------------
-    def start_recording(self) -> None:
-        """
-        Inicia o FFmpeg em modo segmentado (roda indefinidamente).
-        Deve ser chamado dentro de uma Thread dedicada.
-        """
-        self._running.set()
-
-        # Padrão de nomes: seg_0001.mp4, seg_0002.mp4, ...
-        segment_pattern = os.path.join(self.segments_dir, "seg_%04d.mp4")
-
-        command = [
-            "ffmpeg",
-            "-y",
-            # Entrada: câmera via DirectShow (Windows)
-            "-f", "dshow",
-            "-i", f"video={self.camera_name}",
-            # Codec de saída
-            "-c:v", "libx264",
-            "-preset", "ultrafast",   # Mínimo uso de CPU
-            "-tune", "zerolatency",   # Sem buffer de latência
-            "-g", "30",               # Força um keyframe a cada 30 frames (garante corte)
-            "-sc_threshold", "0",     # Desabilita detecção de cena que atrapalha o -g
-            # Segmentação
-            "-f", "segment",
-            "-segment_time", str(self.segment_duration),
-            "-reset_timestamps", "1",
-            # Saída
-            segment_pattern,
-        ]
-
-        logger.info(f"DVR: Iniciando gravação segmentada ({self.segment_duration}s por segmento)")
-        logger.debug(f"DVR: Comando FFmpeg → {' '.join(command)}")
-
-        try:
-            self._ffmpeg_process = subprocess.Popen(
-                command,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            logger.info("DVR: FFmpeg iniciado com sucesso (PID %d)", self._ffmpeg_process.pid)
-
-            # Fica bloqueado aqui enquanto o FFmpeg estiver rodando
-            self._ffmpeg_process.wait()
-
-            # Se o processo terminou sozinho (crash ou erro)
-            if self._running.is_set():
-                logger.error("DVR: FFmpeg encerrou inesperadamente!")
-
-        except FileNotFoundError:
-            logger.error("DVR: FFmpeg não encontrado no PATH do sistema. Instale o FFmpeg.")
-        except Exception as exc:
-            logger.error("DVR: Erro fatal na gravação → %s", exc)
-
-    def stop_recording(self) -> None:
-        """Encerra graciosamente o FFmpeg."""
-        self._running.clear()
-        if self._ffmpeg_process and self._ffmpeg_process.poll() is None:
-            logger.info("DVR: Encerrando FFmpeg (PID %d)...", self._ffmpeg_process.pid)
-            self._ffmpeg_process.terminate()
+    def start_recording(self):
+        while not self._stop.is_set():
+            folder = Path(self.segments_dir).resolve()/uuid4().hex
+            folder.mkdir()
+            self._active_session = str(folder)
+            (folder/"session.json").write_text(json.dumps({"started_at":time.time()}),encoding="utf-8")
             try:
-                self._ffmpeg_process.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                self._ffmpeg_process.kill()
-            logger.info("DVR: FFmpeg encerrado.")
+                recording_started = time.monotonic()
+                with (folder/"ffmpeg.log").open("a",encoding="utf-8") as error_log:
+                    self._ffmpeg_process = subprocess.Popen(self._command(folder),stdin=subprocess.PIPE,stdout=subprocess.DEVNULL,stderr=error_log)
+                    while self._ffmpeg_process.poll() is None and not self._stop.wait(1):
+                        if shutil.disk_usage(folder).free < Config.MIN_FREE_DISK_MB*1024*1024:
+                            logger.error("DVR: reserva de disco atingida; captura interrompida.")
+                            self._finish_process()
+                            break
+                        manifest = folder / "segments.csv"
+                        progress_age = time.time() - manifest.stat().st_mtime if manifest.exists() else time.monotonic() - recording_started
+                        if progress_age > self.segment_duration * 2 + 15:
+                            logger.error("DVR: manifesto sem progresso; reiniciando captura.")
+                            self._finish_process()
+                            break
+                if not self._stop.is_set():
+                    logger.error("DVR: gravacao interrompida; nova tentativa em cinco segundos. Log: %s",folder/"ffmpeg.log")
+            except (OSError,subprocess.SubprocessError):
+                logger.exception("DVR: falha ao iniciar gravacao")
+            finally:
+                self._finish_process()
+                self._active_session = None
+            self._stop.wait(5)
 
-    # ------------------------------------------------------------------
-    # LIMPEZA DE DISCO
-    # ------------------------------------------------------------------
-    def start_cleanup_loop(self) -> None:
-        """
-        Loop infinito que apaga segmentos mais antigos que RETENTION_HOURS.
-        Deve ser chamado dentro de uma Thread dedicada (daemon).
-        """
-        logger.info("DVR Cleanup: Rotina de limpeza iniciada (retenção: %.1f horas)", self.retention_hours)
+    def _finish_process(self):
+        process = self._ffmpeg_process
+        if process and process.poll() is None:
+            try:
+                process.stdin.write(b"q\n")
+                process.stdin.flush()
+                process.wait(timeout=10)
+            except (OSError,ValueError,subprocess.TimeoutExpired):
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=5)
 
-        while self._running.is_set():
+    def stop_recording(self):
+        self._stop.set()
+        self._finish_process()
+
+    def segments(self):
+        result = []
+        for manifest in Path(self.segments_dir).glob("*/segments.csv"):
+            folder = manifest.parent
+            first, anchor = folder/"seg_00000000.mp4",folder/"origin.json"
+            try:
+                if anchor.exists():
+                    origin = json.loads(anchor.read_text(encoding="utf-8"))["epoch"]
+                elif first.exists():
+                    stat = first.stat()
+                    origin = getattr(stat,"st_birthtime",stat.st_ctime)
+                    anchor.write_text(json.dumps({"epoch":origin}),encoding="utf-8")
+                else:
+                    continue
+                with manifest.open(newline="",encoding="utf-8") as stream:
+                    for row in csv.reader(stream):
+                        if len(row)!=3:
+                            continue
+                        name,begin,end = row
+                        path = folder/Path(name).name
+                        begin,end = float(begin),float(end)
+                        if path.is_file() and end>begin:
+                            result.append(Segment(str(path.resolve()),origin+begin,origin+end,str(folder.resolve())))
+            except (OSError,ValueError,json.JSONDecodeError):
+                logger.warning("DVR: manifesto temporariamente indisponivel: %s",manifest)
+        return sorted(result,key=lambda s:s.start)
+
+    def window(self,timestamp,before,after):
+        start,end = timestamp-before,timestamp+after
+        segments = [s for s in self.segments() if s.end>start and s.start<end]
+        if not segments or segments[0].start>start+0.1 or segments[-1].end<end-0.001:
+            raise WindowNotReady("Janela ainda nao finalizada ou buffer insuficiente; evento preservado.")
+        cursor,session = start,segments[0].session
+        for segment in segments:
+            if segment.session!=session or segment.start>cursor+0.1:
+                raise WindowNotReady("Janela atravessa interrupcao de gravacao; necessita revisao.")
+            cursor = max(cursor,segment.end)
+        return segments,max(0,start-segments[0].start),end-start
+
+    def ready_for_click(self,timestamp,before):
+        if not self._ffmpeg_process or self._ffmpeg_process.poll() is not None:
+            return False
+        segments = self.segments()
+        if not segments or segments[-1].end<timestamp-self.segment_duration-5:
+            return False
+        return any(s.session==self._active_session and s.start<=timestamp-before+0.1 for s in segments)
+
+    def start_cleanup_loop(self):
+        while not self._stop.is_set():
             self._cleanup_old_segments()
-            # Verifica a cada 5 minutos
-            for _ in range(300):
-                if not self._running.is_set():
-                    break
-                time.sleep(1)
+            self._stop.wait(60)
 
-        logger.info("DVR Cleanup: Rotina de limpeza finalizada.")
-
-    def _cleanup_old_segments(self) -> None:
-        """Apaga segmentos .mp4 mais velhos que o limite de retenção."""
-        cutoff_time = time.time() - (self.retention_hours * 3600)
-        pattern = os.path.join(self.segments_dir, "seg_*.mp4")
-        removed = 0
-
-        for filepath in glob.glob(pattern):
-            try:
-                if os.path.getmtime(filepath) < cutoff_time:
-                    os.remove(filepath)
-                    removed += 1
-            except OSError as exc:
-                logger.warning("DVR Cleanup: Não conseguiu apagar %s → %s", filepath, exc)
-
-        if removed > 0:
-            logger.info("DVR Cleanup: %d segmento(s) antigo(s) removido(s).", removed)
-
-    # ------------------------------------------------------------------
-    # UTILITÁRIO: listar segmentos ordenados
-    # ------------------------------------------------------------------
-    def get_recent_segments(self, count: int) -> list[str]:
-        """
-        Retorna os `count` segmentos MAIS RECENTES (excluindo o que está sendo escrito agora).
-        Ordenados do mais antigo para o mais recente (ordem correta para concat).
-        """
-        pattern = os.path.join(self.segments_dir, "seg_*.mp4")
-        all_segments = sorted(glob.glob(pattern), key=os.path.getmtime)
-
-        if not all_segments:
-            return []
-
-        # O último arquivo da lista é o que o FFmpeg está escrevendo AGORA (incompleto).
-        # Removemos ele da seleção para evitar corrupção.
-        completed_segments = all_segments[:-1]
-
-        # Pega os N mais recentes
-        selected = completed_segments[-count:]
-
-        logger.debug(
-            "DVR: %d segmentos completos disponíveis. Selecionados %d: %s",
-            len(completed_segments),
-            len(selected),
-            [os.path.basename(s) for s in selected],
-        )
-        return selected
+    def _cleanup_old_segments(self):
+        with self._filesystem_lock:
+            cutoff = time.time()-self.retention_hours*3600
+            windows = self.store.capture_windows() if self.store else []
+            for segment in self.segments():
+                protected = any(segment.end>start and segment.start<end for start,end in windows)
+                if segment.end<cutoff and not protected:
+                    try:
+                        Path(segment.path).unlink(missing_ok=True)
+                    except OSError:
+                        logger.warning("DVR: limpeza adiada para %s",segment.path)
+            # Retire abandoned session logs/partial files only after retention, never pending windows.
+            root = Path(self.segments_dir).resolve()
+            for folder in root.iterdir():
+                if not folder.is_dir() or str(folder) == self._active_session or folder.parent != root:
+                    continue
+                metadata = folder / "session.json"
+                try:
+                    if not metadata.exists():
+                        continue
+                    files = list(folder.iterdir())
+                    if any(not item.is_file() for item in files):
+                        continue
+                    started = json.loads(metadata.read_text(encoding="utf-8"))["started_at"]
+                    ended = max(item.stat().st_mtime for item in files)
+                    if ended >= cutoff or any(ended > start and started < end for start, end in windows):
+                        continue
+                    for item in files:
+                        item.unlink()
+                    folder.rmdir()
+                except (OSError, ValueError, KeyError):
+                    logger.warning("DVR: sessao antiga preservada para proxima limpeza: %s", folder)
