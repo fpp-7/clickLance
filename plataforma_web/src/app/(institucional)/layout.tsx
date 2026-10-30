@@ -6,7 +6,9 @@ export default function LayoutInstitucional({ children }: LayoutProps<"/">) {
   return (
     <>
       <Cabecalho />
-      <main className="flex-1">{children}</main>
+      <main id="conteudo" className="flex-1">
+        {children}
+      </main>
       <Rodape />
     </>
   );

@@ -11,7 +11,7 @@ Replay de jogadas para quadras de futsal e society. O jogador aciona um botão f
 | Gateway | Captura IP/RTSP, replay temporal, aceite SQLite, pipeline recuperável, configuração remota, operação Windows e telemetria cloud opt-in implementados. |
 | Botão | Protocolo CL1 implementado; firmware compilado para Mega. Validação física pendente. |
 | Backend | BE-001–028 implementadas para revisão: administração, ingestão, contas de jogador, busca, mídia autorizada, biblioteca, bloqueio, purga e telemetria. BE-029/030 parcialmente verificadas; BE-031 pendente de homologação real. |
-| Plataforma web | Landing, busca de arenas e detalhe com quadras em `plataforma_web/`, com dados fictícios por padrão. Integração real, player, login e biblioteca pendentes. |
+| Plataforma web | Landing, conta de jogador, descoberta, player, biblioteca e administração implementados; demonstração identificada e conexão real via BFF Next/cookies HttpOnly. Ensaio local com Spring/PostgreSQL aprovado; revisão visual e homologação de mídia/hardware pendentes. |
 | Piloto | Hardware, AWS/backend reais e jornada completa ainda dependem de homologação. |
 
 Verificação de 30/10: 103 testes Java aprovados, incluindo 81 PostgreSQL/HTTP;
@@ -46,7 +46,7 @@ carga representativa ou medição clique→reprodução. Evidências e limites n
 botao_local/        Firmware do botão
 gateway_captura/   Captura, processamento e envio locais
 backend/           API Spring Boot; administração, jogador, biblioteca e ciclo de vida
-plataforma_web/    Interface Next.js com landing e consultas demonstrativas
+plataforma_web/    Interface Next.js; jogador, player, biblioteca, administração e BFF
 docs/              Referências atuais e evidências
 ```
 

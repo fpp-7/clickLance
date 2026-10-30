@@ -1,61 +1,130 @@
-import { MousePointerClick, QrCode, Share2 } from "lucide-react";
-import { BotaoLink } from "@/components/ui/Botao";
-
-const passos = [
-  {
-    icone: MousePointerClick,
-    titulo: "Aperte o botão",
-    texto: "Saiu um lance bonito? Aperte o botão na quadra e os últimos segundos ficam salvos.",
-  },
-  {
-    icone: QrCode,
-    titulo: "Escaneie o QR code",
-    texto: "Aponte a câmera do celular para o QR code da quadra e veja os lances da sua partida.",
-  },
-  {
-    icone: Share2,
-    titulo: "Assista e compartilhe",
-    texto: "Veja em câmera lenta, baixe o vídeo e mande para o grupo do time.",
-  },
-];
-
+import Link from "next/link";
+import Image from "next/image";
+import {
+  Play,
+  Search,
+  BookmarkCheck,
+  MousePointer2,
+  Film,
+  CircleCheck,
+  MoveUpRight,
+} from "lucide-react";
 export default function PaginaInicial() {
   return (
-    <div className="mx-auto w-full max-w-6xl px-4">
-      <section className="flex flex-col items-center py-16 text-center sm:py-24">
-        <p className="text-primary text-sm font-semibold tracking-widest uppercase">
-          Replays para quadras de society e futsal
-        </p>
-        <h1 className="font-display mt-4 max-w-3xl text-5xl leading-none font-bold tracking-wide uppercase sm:text-7xl">
-          Seu lance, gravado <span className="text-primary">com um clique</span>
-        </h1>
-        <p className="text-muted mt-6 max-w-xl text-lg">
-          A câmera da quadra grava o jogo inteiro. Você aperta o botão no momento certo e o lance
-          aparece no seu celular para assistir, baixar e compartilhar.
-        </p>
-        <div className="mt-10 flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
-          <BotaoLink href="/arenas" tamanho="lg" largura="total">
-            Encontrar minha quadra
-          </BotaoLink>
+    <div className="page-shell" style={{ paddingTop: 0 }}>
+      <section className="hero" aria-labelledby="hero-title">
+        <div className="hero-copy">
+          <p className="hero-intro">
+            <Film aria-hidden="true" />
+            Seu futebol merece replay.
+          </p>
+          <h1 id="hero-title">
+            O jogo acaba.
+            <br />O lance fica.
+          </h1>
+          <p className="hero-description">
+            Aquele gol, o passe improvável, a defesa do jogo. Aperte o botão na quadra e reviva o
+            que vale a pena guardar.
+          </p>
+          <div className="hero-actions">
+            <Link href="/arenas" className="button">
+              <Search size={17} aria-hidden="true" />
+              Encontrar minha quadra
+            </Link>
+            <a href="#como-funciona" className="text-link" style={{ fontSize: 13 }}>
+              Como funciona
+            </a>
+          </div>
+          <p className="hero-note">
+            <CircleCheck size={15} aria-hidden="true" />
+            Piloto gratuito. Seus melhores momentos, na sua biblioteca.
+          </p>
+        </div>
+        <div className="hero-visual">
+          <div className="hero-corner" aria-hidden="true" />
+          <div className="hero-photo">
+            <Image
+              src="/images/society-hero-v1.png"
+              alt="Jogador de society dominando a bola junto à linha lateral, sob a luz do fim de tarde"
+              fill
+              priority
+              sizes="(max-width:720px) 94vw, 560px"
+            />
+            <div className="hero-image-shade" />
+            <span className="hero-timestamp">
+              <Film size={12} aria-hidden="true" />O próximo pode ser o seu.
+            </span>
+            <Link href="/arenas" className="hero-play" aria-label="Encontrar quadra e ver replays">
+              <Play fill="currentColor" aria-hidden="true" />
+            </Link>
+            <div className="hero-caption">
+              <p>Vale ver de novo.</p>
+              <span>Imagem ilustrativa</span>
+            </div>
+          </div>
+          <div className="saved-sticker">
+            <BookmarkCheck aria-hidden="true" />
+            <div>
+              <b>Do jogo para a memória.</b>
+              <small>Guarde seus favoritos em um só lugar.</small>
+            </div>
+          </div>
         </div>
       </section>
-
-      <section aria-labelledby="como-funciona" className="pb-20">
-        <h2 id="como-funciona" className="sr-only">
-          Como funciona
-        </h2>
-        <ol className="grid gap-4 sm:grid-cols-3">
-          {passos.map((passo, i) => (
-            <li key={passo.titulo} className="rounded-card border-border bg-surface border p-6">
-              <span className="bg-primary/15 text-primary flex size-11 items-center justify-center rounded-full">
-                <passo.icone className="size-5" aria-hidden="true" />
-              </span>
-              <p className="text-muted mt-5 text-sm font-semibold">Passo {i + 1}</p>
-              <h3 className="mt-1 text-lg font-semibold">{passo.titulo}</h3>
-              <p className="text-muted mt-2 text-sm">{passo.texto}</p>
-            </li>
-          ))}
-        </ol>
+      <form className="finder" action="/arenas" role="search">
+        <div>
+          <h2>Onde foi o seu jogo?</h2>
+          <p>Encontre a arena. Escolha a quadra. Reveja o lance.</p>
+        </div>
+        <label className="finder-input">
+          <Search size={20} aria-hidden="true" />
+          <span className="visually-hidden">Nome da arena</span>
+          <input
+            type="search"
+            name="busca"
+            placeholder="Digite o nome da arena"
+            autoComplete="off"
+          />
+        </label>
+        <button className="button" type="submit">
+          Buscar arena
+          <MoveUpRight size={16} aria-hidden="true" />
+        </button>
+      </form>
+      <section className="how-section" id="como-funciona" aria-labelledby="how-heading">
+        <div className="section-title-row">
+          <h2 id="how-heading">Jogue. Clique. Reviva.</h2>
+          <p>
+            Do lado de fora da quadra,
+            <br />o jogo continua com você.
+          </p>
+        </div>
+        <div className="how-grid">
+          <article className="how-item">
+            <MousePointer2 aria-hidden="true" />
+            <h3>Aconteceu? Aperte o botão.</h3>
+            <p>
+              O botão da quadra pede o replay dos momentos ao redor da jogada. Você continua no
+              jogo.
+            </p>
+          </article>
+          <article className="how-item">
+            <Search aria-hidden="true" />
+            <h3>Encontre pelo horário.</h3>
+            <p>
+              Entre na sua conta, escolha a quadra e o horário em que jogou. Seus lances ficam
+              fáceis de encontrar.
+            </p>
+          </article>
+          <article className="how-item">
+            <BookmarkCheck aria-hidden="true" />
+            <h3>Guarde o que foi seu.</h3>
+            <p>
+              Assista, baixe e salve até 100 lances na sua biblioteca, disponíveis enquanto a conta
+              estiver ativa.
+            </p>
+          </article>
+        </div>
       </section>
     </div>
   );

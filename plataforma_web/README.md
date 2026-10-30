@@ -1,210 +1,173 @@
-# ClickLance — Plataforma Web
+# ClickLance — Plataforma web
 
-Interface web para encontrar arenas e quadras. O projeto usa Next.js e uma
-camada de dados com adaptadores mock e HTTP.
+Atualizado em 30/10/2026. Frontend Next.js para o piloto gratuito: conta do jogador,
+busca de quadras, replays, biblioteca e operação administrativa. A interface usa
+fundo claro, verde de quadra, Barlow Condensed e Manrope; a imagem da entrada é
+ilustrativa. Pagamentos ficam fora deste recorte.
 
-**Estado atual:** landing, busca de arenas e detalhe com quadras implementados.
-O modo padrão usa dados fictícios. Player, login, biblioteca e instalação PWA
-ainda não têm implementação de interface neste módulo.
+## Executar
 
-O piloto é gratuito, com biblioteca pessoal; pagamentos ficam para outra fase.
-As políticas reais seguem as [decisões do backend](../docs/overview_backend_refinamento.md).
-
-## Executar localmente
-
-Use **Node.js 24.15.0 ou superior na linha 24** e npm para atender aos requisitos
-das dependências do lockfile, incluindo jsdom e Vitest. O projeto ainda não fixa
-o runtime por `engines` ou `.nvmrc`.
-
-Na raiz do repositório, em PowerShell:
+Ambiente usado nesta entrega: **Node.js 24.22.1**, npm e Next.js 16.4.3.
+As versões resolvidas estão no [lockfile](package-lock.json). Em PowerShell:
 
 ```powershell
 cd plataforma_web
 node --version
-npm --version
 npm ci
+# Somente se .env.local ainda não existir:
 Copy-Item .env.example .env.local
 npm run dev
 ```
 
-Crie `.env.local` somente se ele ainda não existir, preservando sua configuração.
-Abra [http://localhost:3000](http://localhost:3000).
+Abra [http://localhost:3000](http://localhost:3000). Preserve configurações locais
+existentes. O modo padrão é demonstrativo; não exige Spring Boot, câmera ou AWS.
+Instalação, fontes Google e vídeo público de exemplo podem depender de internet.
 
-O modo mock dispensa backend, gateway e AWS para as consultas demonstrativas.
-Instalação de dependências, fontes Google e mídias externas podem precisar de
-internet; mock não significa funcionamento offline completo.
+Para produção local: `npm run build` e `npm start`. Em uma implantação real,
+servir sob HTTPS: os cookies de sessão usam `Secure` em produção.
 
-Para executar o build de produção local:
+## Telas disponíveis
 
-```powershell
-npm run build
-npm start
-```
+| Rota                                    | Comportamento                                                                     |
+| --------------------------------------- | --------------------------------------------------------------------------------- |
+| `/`                                     | Apresentação do produto, imagem ilustrativa e entrada para encontrar quadras.     |
+| `/entrar`, `/cadastro`                  | Login por email/senha e cadastro de jogador sem verificação inicial de email.     |
+| `/recuperar-acesso`, `/redefinir-senha` | Solicitação genérica de recuperação e redefinição pelo código recebido por email. |
+| `/arenas`                               | Lista paginada e busca nas arenas carregadas, com acesso autenticado.             |
+| `/arenas/[slug]`                        | Quadras da arena; o segmento identifica a empresa conforme a API.                 |
+| `/quadras/[id]`                         | Data, faixas horárias, fuso da quadra e lances paginados.                         |
+| `/lances/[id]`                          | Detalhe, player com acesso autorizado, download e salvar/remover da biblioteca.   |
+| `/biblioteca`                           | Biblioteca do jogador autenticado, com disponibilidade e remoção confirmada.      |
+| `/conta`                                | Identidade atual, logout e encerramento da conta com confirmação.                 |
+| `/admin/entrar`, `/admin`               | Login administrativo e empresas autorizadas; criação exclusiva de plataforma.     |
+| `/admin/empresas/[id]`                  | Quadras, dispositivos, credenciais, configuração, saúde, auditoria e manutenção.  |
 
-## O que está disponível
+O player usa vídeo MP4 autorizado, controles nativos e nova emissão de acesso
+quando necessário. Download solicita sua própria autorização. URLs temporárias
+não viram identidade do lance nem ficam em armazenamento persistente.
 
-| Camada | Disponível | Limite atual |
-|---|---|---|
-| Landing `/` | Apresentação do produto e acesso à busca. | Textos sobre assistir, baixar e compartilhar descrevem a jornada pretendida. |
-| Busca `/arenas` | Filtro por nome/localidade, carregamento, vazio, erro e nova tentativa. | Dados fictícios no modo padrão. |
-| Arena `/arenas/[slug]` | Nome, localização e quadras com estados demonstrativos. | Cartões de quadra ainda não abrem a jornada de lances. |
-| API mock | Arenas, quadras, faixas horárias, lances, SMS, favoritos e solicitação comercial simulados. | Métodos da API não equivalem a telas implementadas. |
-| API HTTP | Transporte JSON, Bearer e tradução de erros. | Rotas propostas; integração com o backend atual pendente. |
-| Player/HLS | Dependência `hls.js` declarada. | Player ainda não implementado. |
-| PWA | Metadados básicos de aplicação e viewport. | Sem manifesto ou service worker implementado. |
-
-Rotas como `/q/[quadraId]`, `/quadra/[id]`, `/lance/[id]`, `/entrar` e
-`/meus-lances` ainda não existem no App Router. Também não há área administrativa
-web nem formulário comercial implementado.
-
-## Stack
-
-| Componente | Uso |
-|---|---|
-| Next.js 16.3.8 | App Router, layouts e metadados. |
-| React / React DOM 19.2.8 | Interface e componentes. |
-| TypeScript | Tipos do domínio e da API. |
-| Tailwind CSS 4 | Estilos e tokens do tema em `globals.css`. |
-| TanStack Query | Consultas, cache e retentativas. |
-| Lucide React | Ícones. |
-| Vitest, Testing Library e jsdom | Testes de lógica e componentes. |
-| ESLint e Prettier | Análise e formatação. |
-
-Versões declaradas em [package.json](package.json) e resolvidas em
-[package-lock.json](package-lock.json). Use `npm ci` para instalar pelo lockfile.
+A administração permite cadastro e estado de empresa/quadra/dispositivo, emissão
+ou rotação de credencial exibida uma vez, publicação de configuração com versão
+base, consulta de saúde e auditoria paginada. Bloqueio e manutenção exigem
+confirmação. A interface não habilita a rotina de purga no servidor; a política
+continua sendo a do [guia operacional](../docs/operacao_backend.md).
 
 ## Configuração
 
-Use `.env.local`, ignorado pelo Git. Variáveis `NEXT_PUBLIC_` podem ser
-publicadas no navegador: não coloque segredos nelas. Reinicie o servidor após
-alterações; para produção, gere novo build.
+Use `.env.local`, ignorado pelo Git. Reinicie o servidor após mudar o modo e gere
+um novo build para alterar valores públicos em produção.
 
-| Variável | Exemplo / padrão | Finalidade |
-|---|---|---|
-| `NEXT_PUBLIC_API_MODE` | `mock` | Somente o valor exato `http` seleciona HTTP; ausente ou diferente usa mock. |
-| `NEXT_PUBLIC_API_URL` | Exemplo: `http://localhost:8080/api`; fallback: `/api`. | Base dos caminhos do adaptador HTTP. |
-| `NEXT_PUBLIC_SITE_URL` | `http://localhost:3000` | Base válida para metadados. |
-| `NEXT_PUBLIC_MOCK_LATENCIA` | `450` | Latência média simulada, em ms; `0` elimina a espera. |
-| `NEXT_PUBLIC_MOCK_FALHAS` | `0` | Fração de falhas simuladas entre 0 e 1; aceita pelo código, ainda ausente do exemplo. |
+| Variável               | Padrão                  | Uso                                                                                          |
+| ---------------------- | ----------------------- | -------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_API_MODE` | `mock`                  | Somente `http` seleciona a conexão real; os demais valores usam a demonstração identificada. |
+| `BACKEND_URL`          | `http://127.0.0.1:8080` | Origem do Spring Boot, lida somente pelo servidor Next. Não adicionar `/api/v1`.             |
+| `NEXT_PUBLIC_SITE_URL` | `http://localhost:3000` | Origem pública dos metadados.                                                                |
 
-A seleção fica em [src/lib/api/index.ts](src/lib/api/index.ts).
-Falha da API HTTP não ativa mocks automaticamente.
+`NEXT_PUBLIC_API_URL` não é usado pela nova camada das telas. O navegador chama
+`/api/backend/...` na mesma origem; o Next encaminha somente caminhos e métodos
+permitidos para `/api/v1/...` do backend. Falha da conexão real nunca ativa o
+modo demonstrativo automaticamente.
 
-## Camada de dados e integração real
+Exemplo de conexão local real:
 
-As telas usam a interface [ClickLanceApi](src/lib/api/cliente.ts) através dos
-hooks em `src/lib/consultas/`. Os [tipos](src/lib/api/tipos.ts) e
-[erros](src/lib/api/erros.ts) ficam junto dos adaptadores:
+```properties
+NEXT_PUBLIC_API_MODE=http
+BACKEND_URL=http://127.0.0.1:8080
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+```
 
-- [Mock](src/lib/api/mock/index.ts): desenvolvimento demonstrativo e testes.
-- [HTTP](src/lib/api/http/index.ts): requisições ao servidor configurado.
+Inicie o backend conforme seu [README](../backend/README.md), com PostgreSQL,
+chaves e dados provisionados. Cadastro de jogador não concede administração.
+SMTP precisa estar configurado no backend para envio real de recuperação.
 
-O adaptador HTTP espera caminhos para arenas, quadras, partidas, lances, SMS,
-favoritos e solicitações comerciais. São propostas do frontend, **não contratos
-já implementados no backend**. A fonte dos contratos é a
-[OpenAPI do backend](../backend/openapi.yaml).
+## Sessão e integração
 
-Em 30/10/2026, o backend oferece administração em `/api/v1/admin/...` e conta,
-descoberta, reprodução/download e biblioteca em `/api/v1/jogadores/...`
-(BE-001–028 implementadas para revisão). Este cliente ainda precisa integrar
-esses fluxos. Mudar apenas o modo e a URL base não torna os projetos compatíveis:
-é preciso alinhar caminhos, schemas, paginação, autenticação e erros no adaptador.
-Não alterar o backend para atender silenciosamente a rotas provisórias do mock.
+As telas usam [lib/platform/api.ts](src/lib/platform/api.ts), seus
+[tipos](src/lib/platform/types.ts), [sessão](src/lib/platform/session.tsx) e o
+[proxy Next](src/app/api/backend/%5B...path%5D/route.ts). A
+[OpenAPI](../backend/openapi.yaml) permanece a fonte de rotas e schemas.
 
-A organização Java por `model`, `controller`, `service` e `repository` está no
-[guia de arquitetura](../docs/arquitetura_backend.md). Essa separação interna
-preserva os caminhos e payloads HTTP; o cliente continua seguindo a OpenAPI.
+No login real, o BFF guarda o token em cookie `HttpOnly`, `SameSite=Lax`, separado
+por papel (`player` e `admin`), por até 60 minutos. A resposta JSON não devolve
+o token para as telas. O BFF acrescenta Bearer na chamada ao Spring; as telas não
+persistem JWT em `localStorage`. Logout, conta encerrada e respostas 401 limpam
+a sessão aplicável. O cache de consultas é separado por identidade e limpo nas
+trocas de sessão.
 
-A integração do jogador deve usar os contratos BE-013–021 já implementados.
-O backend usa email/senha sem verificação inicial, sessão de 60 minutos,
-recuperação por SMTP e biblioteca de até 100 lances. O tipo `Partida` representa
-faixas horárias no protótipo; não cria uma entidade Partida no backend.
-SMS e retenção do mock não definem políticas reais.
+Mutações exigem JSON e origem igual à do site. O proxy limita os caminhos,
+parâmetros de consulta e tamanho do corpo, não segue redirecionamentos do
+upstream e devolve erros tratados com correlação quando disponível. O backend
+continua responsável pela autorização, validade da sessão e isolamento entre
+empresas; esconder um botão não substitui esses controles.
 
-O adaptador HTTP atual guarda a sessão em `localStorage`, com os mesmos helpers
-do mock. Essa escolha precisa ser revista com a política de sessão antes de usar
-contas reais; não representa a autenticação administrativa de BE-003. Ao alternar
-modos, remova apenas as chaves `clicklance:` da origem da aplicação para não
-reaproveitar uma sessão demonstrativa.
+As URLs de mídia aceitas são HTTPS; HTTP de loopback é permitido apenas em
+desenvolvimento. O jogador não recebe credenciais AWS, URL da câmera ou token do
+dispositivo. O operador administrativo recebe a nova credencial do dispositivo
+somente na emissão/rotação, mantida na memória da tela até ser dispensada.
 
-## Comportamento do mock
+## Demonstração
 
-- Arenas e quadras fictícias ficam em [mock/dados.ts](src/lib/api/mock/dados.ts).
-  O rótulo “Gravando” é demonstrativo, sem telemetria de câmera real.
-- Faixas de uma hora são chamadas de partidas, incluindo a hora atual
-  `ao_vivo`. O histórico padrão é de nove dias.
-- Lances usam geração por semente e mídias públicas em `storage.googleapis.com`;
-  não são gravações da quadra.
-- Na consulta de lances ao vivo, a simulação considera um lance após 15 segundos,
-  os seguintes a cada 30 segundos e oito segundos no estado `processando`.
-  Ainda não há tela ou polling de lances para apresentar esse fluxo.
-- A retenção demonstrativa é de sete dias. A política real segue D04–D06.
-- Após solicitar um código para um telefone demonstrativo com DDD, o código
-  aceito é `123456`, válido por cinco minutos. Nenhum SMS é enviado.
-- Sessão, favoritos, códigos e início da simulação usam chaves `clicklance:` no
-  `localStorage`. Favoritos não são isolados por usuário como uma biblioteca real.
-- Solicitação comercial valida campos e gera protocolo fictício; não envia
-  email nem registra contato em serviço externo.
+O rótulo de demonstração permanece visível. Use **Explorar demonstração** na
+entrada do jogador ou **Explorar administração demonstrativa** no login admin.
 
-Esses recursos podem ser exercitados pelos métodos da API e testes mesmo sem
-tela correspondente. Não comprovam autorização, persistência cloud ou hardware.
+- Dados e sessões são sintéticos e vivem apenas na memória da aba; recarregar
+  reinicia o cenário. Nenhuma conta ou gravação real é criada.
+- É possível cadastrar uma conta demonstrativa, entrar e manter biblioteca
+  isolada por identidade, respeitando a cota de 100 lances.
+- As faixas usam o fuso da quadra. Vídeos públicos de exemplo são identificados
+  como demonstração; não são lances capturados na arena.
+- A recuperação mostra resposta genérica sem enviar email. A demonstração não
+  inventa um código de recuperação válido; redefinição real depende de SMTP.
+- Cadastro/status/configuração administrativos têm respostas demonstrativas.
+  Purga e reconciliação remotas permanecem indisponíveis na demonstração.
 
 ## Estrutura
 
 ```text
-plataforma_web/
-  src/
-    app/
-      (institucional)/    landing e layout institucional
-      (jogador)/arenas/   busca e detalhe por slug
-      layout.tsx         fontes, metadados e estrutura base
-      provedores.tsx     provider do TanStack Query
-      globals.css        tokens de tema e estilos globais
-    components/
-      arenas/            busca e cartões de arena/quadra
-      layout/            cabeçalho e rodapé
-      ui/                botões, campos e estados de interface
-    hooks/               hooks compartilhados
-    lib/
-      api/               interface, tipos, erros e adaptadores
-      consultas/         hooks e chaves de cache
-      utils/             formatação e utilitários
-    test/                setup dos testes
-  package.json
-  package-lock.json
-  .env.example
+src/app/
+  (institucional)/        entrada do produto
+  (jogador)/              autenticação, arenas, quadras, lances, biblioteca e conta
+  admin/                  login e operação administrativa
+  api/backend/[...path]/  BFF de mesma origem e cookies de sessão
+  globals.css             tokens e estilos compartilhados
+  provedores.tsx          cache de consultas e sessão
+src/components/
+  auth/                   conta e formulários de autenticação
+  player/                 descoberta, filtros, player e biblioteca
+  admin/                  cadastros, dispositivos, saúde e manutenção
+  layout/ e ui/           navegação e componentes compartilhados
+src/lib/platform/         contratos, cliente, sessão, erros e demonstração
+public/                   assets da interface
 ```
 
-O domínio usa nomes em português; a estrutura técnica usa `components`, `hooks`
-e `lib`. Cores compartilhadas vêm dos tokens de `globals.css`. Os formatadores
-atuais usam o fuso do ambiente; a integração real deverá respeitar o fuso da quadra.
+## Verificação e limites
 
-## Comandos de desenvolvimento
+| Comando                | Ação                                                                     |
+| ---------------------- | ------------------------------------------------------------------------ |
+| `npm run lint`         | Análise de código.                                                       |
+| `npm run typecheck`    | Verificação TypeScript.                                                  |
+| `npm test`             | Testes de proxy, API, sessão, demonstração, administração e componentes. |
+| `npm run build`        | Build de produção.                                                       |
+| `npm run verificar`    | Lint, tipos, testes e build, nessa ordem.                                |
+| `npm run format:check` | Conferência de formatação.                                               |
 
-| Comando | Ação |
-|---|---|
-| `npm run dev` | Servidor de desenvolvimento. |
-| `npm run build` | Build de produção. |
-| `npm start` | Executar o build já gerado. |
-| `npm run lint` / `npm run lint:fix` | Analisar código / aplicar correções disponíveis. |
-| `npm run typecheck` | Executar `tsc --noEmit`. |
-| `npm test` / `npm run test:watch` | Executar testes uma vez / acompanhar alterações. |
-| `npm run format` / `npm run format:check` | Formatar arquivos / conferir formatação. |
-| `npm run verificar` | Lint, typecheck, testes e build, nessa ordem; não inclui `format:check`. |
+Ensaio real local de 30/10: **18 verificações Next → Spring Boot → PostgreSQL
+17.11 aprovadas**, cobrindo cadastro, cookie HttpOnly sem token em JSON,
+isolamento jogador/admin, arena/quadra/disponibilidade/filtro/detalhe,
+salvar/listar/remover, recusa CSRF, SMTP ausente, logout, sessão revogada e
+encerramento de conta. Dados eram sintéticos em banco temporário; não houve
+chamada de mídia AWS nem envio de email. Relatório local descartável em
+`backend/target/web-proxy-integration-result.json`.
 
-Há testes de API mock, formatação e cartão de arena. Eles não comprovam integração
-com Spring Boot, reprodução de vídeo ou instalação PWA. A existência dos scripts
-não significa que as verificações passaram; registre os resultados ao executá-las.
+Verificação final: `npm run lint`, `npm run typecheck`, `npm test` (48 testes) e
+`npm run build` aprovados. `npm audit` não reportou vulnerabilidades após atualizar
+o lockfile. A [direção visual](../docs/frontend_design.md) registra os tokens,
+a imagem ilustrativa e o prompt usado. O CSS foi implementado para celular e desktop, mas **não houve
+validação visual no navegador nem aprovação por screenshots** nesta execução.
+O acesso de automação ao navegador foi interrompido antes dessa revisão.
 
-## Próximos recortes
-
-1. Alinhar o adaptador HTTP aos contratos disponíveis no backend.
-2. Definir a sessão real do jogador e identificar visualmente o modo demonstrativo.
-3. Implementar quadra/data/horário e lances conforme as APIs forem entregues.
-4. Implementar reprodução autorizada e biblioteca segundo as políticas aprovadas.
-5. Avaliar PWA com regras explícitas de cache e acesso offline.
-
-O [documento da plataforma](../docs/plataforma_web.md) descreve o planejamento
-funcional; este README registra a estrutura e os comandos observados neste módulo.
-Consulte o [backlog](../docs/sprints_backend.md) e o
-[guia do backend](../backend/README.md).
+PWA instalável, service worker, cache offline e reprodução offline não estão
+implementados. SMTP real, vídeo/storage AWS, câmera/botão e aparelhos do público
+continuam sem homologação. Nenhum deploy foi realizado. Próximos trabalhos:
+revisão visual/acessibilidade em aparelhos reais e fechamento dos ensaios
+BE-029–031 conforme o [backlog](../docs/sprints_backend.md).

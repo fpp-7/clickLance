@@ -1,5 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
-import { ehErroApi } from "@/lib/api";
+import { ApiError } from "@/lib/platform/api";
 
 /**
  * Padrões pensados para quem abre o site na quadra com sinal fraco:
@@ -15,8 +15,8 @@ export function criarQueryClient(): QueryClient {
         refetchOnWindowFocus: true,
         retry: (tentativa, erro) => {
           if (
-            ehErroApi(erro) &&
-            ["nao_encontrado", "nao_autorizado", "expirado"].includes(erro.codigo)
+            erro instanceof ApiError &&
+            [401, 403, 404, 409, 422, 429].includes(erro.status ?? 0)
           ) {
             return false;
           }

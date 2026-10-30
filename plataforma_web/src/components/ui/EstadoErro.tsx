@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle, SearchX, WifiOff } from "lucide-react";
-import { codigoDoErro, type CodigoErroApi } from "@/lib/api";
+import { ApiError } from "@/lib/platform/api";
 import { Botao } from "./Botao";
 import { EstadoVazio } from "./EstadoVazio";
 
@@ -12,7 +12,7 @@ interface Props {
   className?: string;
 }
 
-const mensagens: Partial<Record<CodigoErroApi, { titulo: string; descricao: string }>> = {
+const mensagens: Record<string, { titulo: string; descricao: string }> = {
   rede: {
     titulo: "Sem conexão",
     descricao: "Não deu para falar com o servidor. Confira o sinal e tente de novo.",
@@ -23,7 +23,7 @@ const mensagens: Partial<Record<CodigoErroApi, { titulo: string; descricao: stri
   },
   nao_autorizado: {
     titulo: "Você precisa entrar",
-    descricao: "Faça login com seu celular para continuar.",
+    descricao: "Entre com seu email e senha para continuar.",
   },
 };
 
@@ -33,7 +33,16 @@ const padrao = {
 };
 
 export function EstadoErro({ erro, aoTentarDeNovo, tentando, className }: Props) {
-  const codigo = codigoDoErro(erro);
+  const codigo =
+    erro instanceof ApiError
+      ? erro.status === 401 || erro.status === 403
+        ? "nao_autorizado"
+        : erro.status === 404
+          ? "nao_encontrado"
+          : erro.status
+            ? "servidor"
+            : "rede"
+      : "desconhecido";
   const texto = mensagens[codigo] ?? padrao;
   const Icone = codigo === "rede" ? WifiOff : codigo === "nao_encontrado" ? SearchX : AlertTriangle;
 
