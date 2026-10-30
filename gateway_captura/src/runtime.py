@@ -15,6 +15,7 @@ from .persistent_pipeline import PersistentPipeline
 from .remote_config import RemoteConfig
 from .serial_listener import SerialListener
 from .video_processor import VideoProcessor
+from .telemetry import run as send_health
 
 
 def run():
@@ -49,6 +50,7 @@ def run():
             ('Manutencao', maintenance, (store, stop)),
             ('Serial', serial.start_listening, ()),
             ('Configuracao', refresh, ()),
+            ('Telemetria', send_health, (store, stop)),
         ]
         threads = [threading.Thread(name=name, target=target, args=args, daemon=True)
                    for name, target, args in targets]

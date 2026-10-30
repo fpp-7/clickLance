@@ -5,6 +5,14 @@ por instância. Captura RTSP, replay pela janela do clique, aceite local duráve
 pipeline recuperável e diagnóstico operacional. A Intelbras VIP real ainda
 precisa ser identificada e homologada.
 
+Telemetria cloud (30/10/2026, BE-028): configure `HEALTH_URL` com
+`/api/v1/dispositivos/{DEVICE_ID}/saude`. Usa o token existente e envia a cada
+60 segundos (intervalo mínimo), em thread separada, estado de captura, fila,
+idade da pendência e versão. A carga vem das verificações locais; não envia
+URL da câmera, stderr, caminhos ou credenciais. Falha de rede não altera eventos
+nem interrompe o pipeline. Vazio desabilita envio. No backend, contato fica
+obsoleto após 180 segundos; contato recente não comprova captura saudável.
+
 [Resultado da entrega e pendências](../docs/homologacao_2026-10-15.md) ·
 [Manual Windows](../docs/operacao_gateway_windows.md) ·
 [Protocolo do botão](../docs/contratos_gateway_botao.md) ·

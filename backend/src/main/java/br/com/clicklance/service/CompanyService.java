@@ -41,6 +41,16 @@ public class CompanyService {
         return companies.findById(id).orElseThrow(() -> new ApiException(404, "RESOURCE_NOT_FOUND"));
     }
 
+    @Transactional
+    public Company setActive(AdminPrincipal principal, String id, Map<String, Object> body) {
+        principal.requirePlatform();
+        find(principal, id);
+        Input.fields(body, Set.of("active"));
+        companies.setActive(id, Input.bool(body, "active"));
+        audit.success(AuditAction.COMPANY_STATUS_CHANGE, principal.userId(), id, id);
+        return companies.findById(id).orElseThrow(() -> new ApiException(404, "RESOURCE_NOT_FOUND"));
+    }
+
     @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public Map<String, Object> list(AdminPrincipal principal, int page, int size) {
         if (!principal.platformAdmin() && principal.empresaIds().isEmpty()) throw new ApiException(403, "FORBIDDEN");

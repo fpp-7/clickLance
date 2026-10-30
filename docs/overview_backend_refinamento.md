@@ -1,10 +1,10 @@
 # Backend — visão e decisões
 
-Atualizado em 16/10/2026. Fundação e decisões entregues; BE-003–012 implementam administração, cadastros, auditoria, configuração e ingestão v1, propostos para revisão no backlog. Integração local usa PostgreSQL e clientes reais; AWS e hardware continuam sem homologação.
+Atualizado em 30/10/2026. BE-001–028 implementadas para revisão; BE-029/030 têm verificação local parcial e BE-031 aguarda homologação real. Integração local usa PostgreSQL e clientes originais do gateway; AWS e hardware continuam sem homologação.
 
 ## 1. Por onde começar
 
-**Já há definição suficiente para iniciar a fundação e a integração com o gateway.** Acesso aos vídeos e conservação da biblioteca precisam de decisão antes das funcionalidades correspondentes. Não é necessário resolver todo o produto futuro para criar o primeiro fluxo técnico.
+**O fluxo de backend do jogador já está implementado para revisão.** Acesso autenticado, biblioteca de até 100 lances e recuperação SMTP seguem as decisões de 30/10 abaixo. O próximo trabalho é integrar o frontend, configurar serviços externos e completar os ensaios operacionais BE-029–031.
 
 | Referência ativa | Responsabilidade |
 |---|---|
@@ -12,10 +12,10 @@ Atualizado em 16/10/2026. Fundação e decisões entregues; BE-003–012 impleme
 | [Catálogo de requisitos](requisitos_e_regras_mvp.md) | RN, RF, RNF e critérios de aceite; IDs preservados. |
 | [Sprints e histórias](sprints_backend.md) | Backlog executável BE-001–031; dependências, escopo e verificações por tarefa. |
 | [Contrato cloud v1](contrato_cloud_gateway_v1.md) | Payloads e comportamento exigido pelo gateway existente. |
-| [Modelo de dados](modelagem_banco_de_dados.md) | Invariantes que a primeira migration precisa garantir. |
+| [Modelo de dados](modelagem_banco_de_dados.md) | Invariantes das migrations implementadas, incluindo biblioteca e ciclo de vida. |
 | [Arquitetura do backend](arquitetura_backend.md) | Organização Java por camada, responsabilidades e verificações arquiteturais. |
 
-As migrations e a OpenAPI versionadas no backend são as referências executáveis de dados e contratos. A OpenAPI também descreve operações futuras; o [backlog](sprints_backend.md) e o [README](../backend/README.md) identificam o recorte implementado. Não manter cópias de DDL ou JSON em vários documentos.
+As migrations e a OpenAPI versionadas no backend são as referências executáveis de dados e contratos. O [backlog](sprints_backend.md) e o [README](../backend/README.md) identificam implementação, evidências locais e limites de homologação. Não manter cópias de DDL ou JSON em vários documentos.
 
 ## 2. Escopo do primeiro backend
 
@@ -31,7 +31,7 @@ Fluxo: botão → gateway gera o clipe e envia objeto privado → backend autent
 - Conta global e biblioteca pessoal, sem cobrança no piloto.
 - Expiração, controle de acesso e limpeza com retomada após falhas.
 
-Pagamentos, gestão formal de partidas, multicâmera e personalização de domínio não entram na primeira entrega. A capacidade física proposta é uma câmera/quadra por instância de gateway, ainda a confirmar.
+Pagamentos, gestão formal de partidas, multicâmera e personalização de domínio não entram na primeira entrega. D10 confirma uma câmera/quadra por instância de gateway; o equipamento alvo ainda precisa de homologação física.
 
 ## 3. O que falta e quando precisa estar resolvido
 
@@ -40,21 +40,52 @@ As escolhas abaixo continuam distinguindo confirmado, proposto e pendente. As re
 | ID | Decisão | Estado / proposta | Precisa fechar |
 |---|---|---|---|
 | D01 | Escopo comercial inicial. | **Confirmado: piloto gratuito com biblioteca; pagamentos depois.** Duração, público e limite do piloto ainda a definir. | Confirmado; detalhar limites antes do piloto. |
-| D02 | Quem pode ver os lances enquanto vigentes? | **Pendente:** visitante, conta autenticada ou participante com código. | Antes de grade/player e salvamento. |
-| D03 | Por quanto tempo e com qual cota conservar salvos? | **Pendente:** prazo configurável, conta ativa sem prazo fixo ou plano futuro. Evitar promessa de eternidade sem aprovação. | Antes de conservação e purga da biblioteca. |
+| D02 | Quem pode ver os lances enquanto vigentes? | **Confirmado em 30/10:** somente conta de jogador autenticada; sem código de participação no piloto. | Aplicar em descoberta, consultas, detalhe e mídia. |
+| D03 | Por quanto tempo e com qual cota conservar salvos? | **Confirmado em 30/10:** até 100 lances por conta ativa, sem prazo fixo; encerramento remove vínculos, sem apagar os de terceiros. | Cota concorrente e coordenação com purga obrigatórias. |
 | D04 | Limites de retenção pública. | **Confirmado:** padrão 2; de 1 a 30 dias inteiros de 24h. | Definido em BE-002; implementar no recorte correspondente. |
 | D05 | Evento chega quando prazo já acabou. | **Confirmado:** registrar/confirmar sem publicar; preservar clique e identidade. | Definido em BE-002; purga depende de D09 e das histórias próprias. |
 | D06 | Política de retenção muda entre clique e registro. | **Confirmado:** snapshot na primeira ingestão durável, sem recálculo no reenvio. | Definido em BE-002. |
-| D07 | Download e compartilhamento. | **Pendente:** streaming, download autenticado ou ambos; efeito de compartilhar URL temporária. | Antes de download/compartilhamento. |
+| D07 | Download e compartilhamento. | **Confirmado em 30/10:** reprodução e download autenticados; URL privada assinada por até 300 segundos, limitada também ao prazo público restante quando não salvo. | URL emitida é bearer e pode ser reutilizada/compartilhada até expirar; bloqueio não recolhe cópias. |
 | D08 | Inativação e rotação com fila pendente. | **Confirmado:** inativa recusa configuração/ingestão, incluindo reenvios; fila para intervenção. Rotação revoga token anterior imediatamente. | Sem drenagem automática/sobreposição; implementação de rotação em BE-026. |
-| D09 | Proteção e exclusão no storage. | **Pendente:** versionamento, versões antigas, backups, lifecycle e prazo de reconciliação de órfãos. | Antes de purga real/reconciliação automática. |
+| D09 | Proteção e exclusão no storage. | **Delegada ao executor em 30/10:** piloto usa bucket privado sem versionamento, backups de vídeo ou lifecycle concorrente. Purga verifica configuração remota, recusa buckets versionados/suspensos e referências versionadas; confirma ausência após delete exato. | Worker opt-in e credencial própria; órfãos são reportados, nunca apagados por idade. Homologar AWS antes de ativar. |
 | D10 | Escopo físico e identidade de instalação. | **Confirmado:** uma câmera/quadra por instância; vínculo do dispositivo imutável. | Troca de quadra exige novo dispositivo. |
-| D11 | Privacidade, retirada e conservação de metadados. | **Pendente:** responsáveis, informação aos participantes, menores, atendimento, prazos e bloqueio emergencial. | Antes de gravar/publicar participantes reais. |
-| D12 | Sessões de usuários e recuperação. | **Admin confirmado:** JWT de 60 minutos, sem refresh, revogação imediata e vínculo verificado a cada requisição. **Jogadores/recuperação/email pendentes.** | Recorte administrativo definido em BE-002; não libera contas de jogadores. |
+| D11 | Privacidade, retirada e conservação de metadados. | **Admin confirmado em 30/10:** plataforma ou administrador vinculado à empresa bloqueia conteúdo. Conta de jogador encerra imediatamente, revoga sessões, remove vínculos e anonimiza identidade; auditoria pseudônima permanece durante piloto. | Informação aos participantes, menores e responsável pelo atendimento real ainda precisam ser definidos pelo operador antes de imagens reais; nenhuma conformidade jurídica é presumida. |
+| D12 | Sessões de usuários e recuperação. | **Admin preservado. Jogador confirmado em 30/10:** email obrigatório sem verificação inicial; senha 12–72 bytes; JWT separado, 60 minutos, sem refresh; recuperação via SMTP configurável, token de uso único por 15 minutos; reset revoga todas as sessões. | Email normalizado globalmente; cadastro/recuperação de jogador não altera identidade administrativa. SMTP real depende de configuração posterior do operador. |
 | D13 | Relógio e tolerância temporal. | **Confirmado para ingestão:** offset obrigatório, até 300 s futuros e sem limite de atraso além da política de chegada vencida. Fuso IANA por quadra. | Definido em BE-002; filtros civis seguem histórias de consulta. |
-| D14 | Metas e operação do piloto. | **Pendente:** número de arenas/contas, volume, latência, disponibilidade, limite offline, suporte, RPO/RTO e critério de encerramento. | Antes da homologação operacional do piloto. |
+| D14 | Metas e operação do piloto. | **Parâmetros técnicos delegados em 30/10:** uma instância backend, 1 arena/2 quadras/100 jogadores, até 1.000 eventos/dia; online clique→reprodução p95 até 300s, p99 até 600s; backup diário (RPO 24h), restauração alvo 4h. Heartbeat 60s, stale 180s; sem limite artificial de atraso de eventos v1. | São metas a medir, não resultados homologados; operação acompanhada por administrador. Sem SLO de disponibilidade prometido antes do ensaio real. |
 
-### Fechamento BE-002 — 15/10/2026
+### Fechamento dos recortes restantes — 30/10/2026
+
+O usuário autorizou implementar os itens restantes, confirmou D02/D03/D07 e
+esclareceu que o email de jogador **não exige verificação inicial**. Autorizou
+SMTP configurável, com conexão de uma conta real posteriormente. Para D09/D14,
+delegou as escolhas técnicas ao executor e determinou administração da retirada.
+Os valores acima registram essas escolhas; não representam ensaio AWS/hardware.
+
+Inativar origem retira seu conteúdo da vitrine e da descoberta, preservando o
+direito privado de biblioteca enquanto a conta estiver ativa. Bloqueio do lance
+suspende inclusive a biblioteca. Repetição de salvamento já existente não consome
+cota nem renova prazo. Encerramento de conta ocorre em uma transação coordenada;
+falha causa rollback e permite repetir a solicitação.
+
+Purga remove apenas o objeto registrado em bucket sem versões e confirma ausência;
+não se declara economia física sobre versões/backups externos. Reconciliação é
+somente diagnóstico durável: o contrato v1 não prova que um upload sem POST seja
+lixo, mesmo antigo ou com dispositivo revogado. Worker e credenciais de deleção
+não são ativados por instalar a migration ou iniciar o backend.
+
+Limites iniciais por minuto: cadastro 5, login 10, recuperação/redefinição 3,
+consultas 120, emissão de mídia 30, ingestão 120 por credencial, heartbeat 2 por
+credencial. A rede também é limitada (1.200 para ingestão/heartbeat); não confiar
+`X-Forwarded-For` sem configuração de proxy. Contadores em memória valem somente
+para o piloto de uma instância e reiniciam com ela. Métricas globais são exclusivas
+de plataforma e não incluem IPs, emails, tokens ou URLs.
+
+### Histórico: fechamento BE-002 — 15/10/2026
+
+Esta seção preserva as decisões e dependências daquele recorte. As pendências de
+jogador/biblioteca descritas aqui foram resolvidas no fechamento de 30/10 acima;
+o estado atual de implementação está no backlog.
 
 O responsável pelo produto confirmou expressamente nesta sessão os três conjuntos
 de respostas abaixo. Este fechamento substitui as propostas anteriores de
@@ -232,10 +263,9 @@ lifecycle continuam em D09. Referências técnicas:
   bloqueiam somente as histórias que dependem deles. Não foram aprovados por
   associação ao piloto ou aos limites administrativos.
 
-D02 e D03 continuam abertas. O primeiro recorte usa o fechamento BE-002 abaixo;
-as políticas de jogadores e conservação não foram presumidas.
+D02 e D03 estavam abertas nesse recorte histórico e foram confirmadas em 30/10.
 
-## 4. Primeira entrega proposta
+## 4. Histórico da primeira entrega (BE-001–012)
 
 O recorte abaixo está dividido em histórias nas [sprints 1 e 2](sprints_backend.md#3-sprint-1--fundação-e-operação-administrativa). A ordem das tarefas e seus aceites são mantidos no backlog, sem duplicar contratos aqui.
 
@@ -251,13 +281,14 @@ D04–D06 e D10 estão definidos no fechamento BE-002. A consulta ao storage pod
 
 **Aceite da entrega:** cliente existente aceita a configuração e o ACK; evento repetido cria uma linha; conteúdo divergente gera conflito; origem não autorizada é recusada; sucesso só é devolvido depois do commit. Essa entrega ainda não constitui o piloto completo.
 
-## 5. Próximas entregas
+## 5. Estado das entregas e próximos passos
 
-| Entrega | Dependências principais | Resultado |
+| Entrega | Estado em 30/10/2026 | Resultado / próximo passo |
 |---|---|---|
-| Encontrar e assistir | D02, D07, D13 | Navegação temporal e reprodução autorizada, com expiração aplicada em toda emissão de acesso. |
-| Conta e biblioteca | D02, D03, D12 | Salvar/listar/remover com vínculo único e conservação definida. |
-| Limpeza e operação | D03, D08, D09 | Purga coordenada com salvamento, trabalho durável, reconciliação e suporte. |
-| Piloto real | D11, D14 e homologação técnica | Hardware/cloud/player reais e critérios de operação demonstrados. |
+| Encontrar e assistir | BE-015–017 implementadas para revisão. | Integrar o frontend às APIs autenticadas e homologar reprodução real. |
+| Conta e biblioteca | BE-013/014/018–021 implementadas para revisão. | Configurar SMTP e integrar as telas; cota e encerramento verificados localmente. |
+| Limpeza e telemetria | BE-022–028 implementadas para revisão. | Homologar IAM/storage antes de ativar purga; configurar heartbeat da instalação. |
+| Recuperação e capacidade | BE-029/030 parcialmente verificadas. | Completar restauração com mídia, carga representativa e medição ponta a ponta. |
+| Piloto real | BE-031 pendente. | Resolver requisitos operacionais de D11/D14 e demonstrar o fluxo com AWS/hardware/aparelhos reais. |
 
 Autorizações administrativas nascem com os cadastros. Expiração lógica nasce com as consultas. A exclusão automática só entra quando estiver recuperável e coerente com os vínculos salvos.

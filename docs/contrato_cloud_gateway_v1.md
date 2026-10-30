@@ -81,3 +81,22 @@ erro acionável. Com `CONFIG_URL` vazio, `.env` é provisionamento local explíc
 
 Alterar credenciais não muda a identidade dos eventos. Bucket e dispositivo de
 eventos já aceitos não são reescritos silenciosamente para uma nova instalação.
+## Extensão opt-in de saúde — 30/10/2026 (BE-027/028)
+
+Esta extensão não altera ingestão, ACK nem envelope de configuração v1. O contrato
+executável está na OpenAPI do backend: `POST /api/v1/dispositivos/{id}/saude`,
+autenticado por `X-Device-Token`, com `schema_version=1`; resposta de sucesso 204.
+Campos: `observed_at` com offset e microssegundos, `gateway_version`,
+`capture_state` (READY/WARMING_UP/UNAVAILABLE), `pending_events`,
+`oldest_pending_age_seconds` e `capture_progress_age_seconds` (nullable).
+Campos extras, inclusive credenciais, URLs ou mensagens de erro brutas, são recusados.
+
+Enviar observação atual a cada 60 segundos; não reenfileirar heartbeat antigo.
+Até 30 segundos futuros e no máximo 180 segundos de atraso são aceitos.
+Observação anterior ou repetida não substitui estado nem renova o último contato;
+fora da janela recebe 422. Sem observação: UNKNOWN; contato ou observação de 180
+segundos ou mais: STALE. A consulta administrativa exige autorização da empresa.
+
+Credencial inválida: 401; origem inativa: 403; limite: 429 com Retry-After;
+dependência indisponível: 503 retentável. Falha de heartbeat não interfere no
+aceite/captura, nos snapshots ou nas etapas persistentes dos eventos.

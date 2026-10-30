@@ -46,6 +46,15 @@ public class CourtService {
         return courts.findByCompanyAndId(companyId, id).orElseThrow(() -> new ApiException(404, "RESOURCE_NOT_FOUND"));
     }
 
+    @Transactional
+    public Court setActive(AdminPrincipal principal, String companyId, String id, Map<String, Object> body) {
+        find(principal, companyId, id);
+        Input.fields(body, Set.of("active"));
+        courts.setActive(companyId, id, Input.bool(body, "active"));
+        audit.success(AuditAction.COURT_STATUS_CHANGE, principal.userId(), companyId, id);
+        return courts.findByCompanyAndId(companyId, id).orElseThrow(() -> new ApiException(404, "RESOURCE_NOT_FOUND"));
+    }
+
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public Map<String, Object> list(AdminPrincipal principal, String companyId, int page, int size) {
         companies.find(principal, companyId);

@@ -18,12 +18,12 @@ public class DeviceAuthenticationService {
         this.tokens = tokens;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public DevicePrincipal authenticate(String deviceId, String token) {
         if (deviceId == null || !deviceId.matches("[A-Za-z0-9_-]{1,32}") || !tokens.validFormat(token)) {
             throw new ApiException(401, "UNAUTHENTICATED");
         }
-        var credentials = devices.findCredentials(deviceId).orElse(null);
+        var credentials = devices.findCredentialsForAuthentication(deviceId).orElse(null);
         // Executa a mesma comparacao de hash para identidade ausente, sem revelar existencia.
         boolean matches = tokens.matches(token, credentials == null ? "0".repeat(64) : credentials.tokenHash());
         if (credentials == null || !matches) throw new ApiException(401, "UNAUTHENTICATED");

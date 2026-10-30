@@ -35,6 +35,19 @@ public class DeviceController {
         return devices.find(principal, id);
     }
 
+    @PatchMapping("/dispositivos/{dispositivo_id}/status")
+    Device setActive(@AuthenticationPrincipal AdminPrincipal principal, @PathVariable("dispositivo_id") String id,
+                     @RequestBody Map<String, Object> body) {
+        return devices.setActive(principal, id, body);
+    }
+
+    @PostMapping("/dispositivos/{dispositivo_id}/credenciais/rotacao")
+    ResponseEntity<DeviceIssued> rotateToken(@AuthenticationPrincipal AdminPrincipal principal,
+                                             @PathVariable("dispositivo_id") String id,
+                                             @RequestBody Map<String, Object> body) {
+        return ResponseEntity.ok().header("Cache-Control", "no-store").body(devices.rotateToken(principal, id, body));
+    }
+
     private static int parameter(String value, String name, int min, int max) {
         try { return Input.integer(Long.parseLong(value), name, min, max); }
         catch (NumberFormatException ignored) { Input.invalid(name, "OUT_OF_RANGE"); return 0; }

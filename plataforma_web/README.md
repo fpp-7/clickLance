@@ -104,21 +104,22 @@ favoritos e solicitações comerciais. São propostas do frontend, **não contra
 já implementados no backend**. A fonte dos contratos é a
 [OpenAPI do backend](../backend/openapi.yaml).
 
-O backend atual oferece sessões administrativas, empresas, quadras, dispositivos, auditoria e publicação de configuração em
-`/api/v1/admin/...`; este cliente ainda não implementa esse fluxo. Mudar apenas
-o modo e a URL base não torna os projetos compatíveis. Configuração e ingestão v1
-do gateway estão implementadas e verificadas localmente em BE-008–012; isso não
-libera as APIs do jogador. É preciso alinhar
-caminhos, schemas, paginação, autenticação e erros no adaptador.
+Em 30/10/2026, o backend oferece administração em `/api/v1/admin/...` e conta,
+descoberta, reprodução/download e biblioteca em `/api/v1/jogadores/...`
+(BE-001–028 implementadas para revisão). Este cliente ainda precisa integrar
+esses fluxos. Mudar apenas o modo e a URL base não torna os projetos compatíveis:
+é preciso alinhar caminhos, schemas, paginação, autenticação e erros no adaptador.
 Não alterar o backend para atender silenciosamente a rotas provisórias do mock.
 
 A organização Java por `model`, `controller`, `service` e `repository` está no
 [guia de arquitetura](../docs/arquitetura_backend.md). Essa separação interna
 preserva os caminhos e payloads HTTP; o cliente continua seguindo a OpenAPI.
 
-A integração do jogador depende das histórias BE-013–021 e das decisões
-aplicáveis. O tipo `Partida` representa faixas horárias no protótipo; não cria
-uma entidade Partida no backend. SMS e retenção do mock não definem políticas reais.
+A integração do jogador deve usar os contratos BE-013–021 já implementados.
+O backend usa email/senha sem verificação inicial, sessão de 60 minutos,
+recuperação por SMTP e biblioteca de até 100 lances. O tipo `Partida` representa
+faixas horárias no protótipo; não cria uma entidade Partida no backend.
+SMS e retenção do mock não definem políticas reais.
 
 O adaptador HTTP atual guarda a sessão em `localStorage`, com os mesmos helpers
 do mock. Essa escolha precisa ser revista com a política de sessão antes de usar

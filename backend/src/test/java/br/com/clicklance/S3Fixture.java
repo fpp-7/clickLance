@@ -24,11 +24,41 @@ final class S3Fixture implements AutoCloseable {
     final HttpServer server;
     volatile int failureStatus;
     volatile boolean changeOnGet;
+    volatile boolean lifecycleOperations;
+    volatile String versioningStatus;
+    volatile int deleteFailure;
+    final AtomicInteger deletes=new AtomicInteger(),lists=new AtomicInteger();
     S3Fixture() throws IOException {
         server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
         server.createContext("/", exchange -> {
             try {
                 String method=exchange.getRequestMethod();
+                String query=exchange.getRequestURI().getRawQuery();
+                if(lifecycleOperations && method.equals("GET") && query!=null && query.contains("versioning")) {
+                    if(failureStatus!=0) { exchange.sendResponseHeaders(failureStatus,-1); return; }
+                    String xml="<VersioningConfiguration xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">"+(versioningStatus==null?"":"<Status>"+versioningStatus+"</Status>")+"</VersioningConfiguration>";
+                    byte[] bytes=xml.getBytes(StandardCharsets.UTF_8); exchange.sendResponseHeaders(200,bytes.length); exchange.getResponseBody().write(bytes); return;
+                }
+                if(lifecycleOperations && method.equals("GET") && query!=null && query.contains("list-type=2")) {
+                    lists.incrementAndGet();
+                    if(failureStatus!=0) { exchange.sendResponseHeaders(failureStatus,-1); return; }
+                    String prefix="";
+                    for(String parameter:query.split("&")) if(parameter.startsWith("prefix=")) prefix=java.net.URLDecoder.decode(parameter.substring(7),StandardCharsets.UTF_8);
+                    String bucket=exchange.getRequestURI().getPath().replace("/","");
+                    StringBuilder xml=new StringBuilder("<ListBucketResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><IsTruncated>false</IsTruncated>");
+                    for(var entry:objects.entrySet()) if(entry.getKey().startsWith("/"+bucket+"/"+prefix)) {
+                        String key=entry.getKey().substring(bucket.length()+2);
+                        xml.append("<Contents><Key>").append(key).append("</Key><Size>").append(entry.getValue().bytes().length).append("</Size></Contents>");
+                    }
+                    byte[] bytes=xml.append("</ListBucketResult>").toString().getBytes(StandardCharsets.UTF_8); exchange.sendResponseHeaders(200,bytes.length); exchange.getResponseBody().write(bytes); return;
+                }
+                if(lifecycleOperations && method.equals("DELETE")) {
+                    deletes.incrementAndGet();
+                    if(deleteFailure!=0) { exchange.sendResponseHeaders(deleteFailure,-1); return; }
+                    var existing=objects.get(exchange.getRequestURI().getPath());
+                    if(existing!=null && !existing.etag().equals(exchange.getRequestHeaders().getFirst("If-Match"))) { exchange.sendResponseHeaders(412,-1); return; }
+                    objects.remove(exchange.getRequestURI().getPath()); exchange.sendResponseHeaders(204,-1); return;
+                }
                 boolean head=method.equals("HEAD");
                 if (head) heads.incrementAndGet(); else if (method.equals("GET")) gets.incrementAndGet();
                 else { mutations.incrementAndGet(); exchange.sendResponseHeaders(405,-1); return; }
@@ -42,7 +72,7 @@ final class S3Fixture implements AutoCloseable {
                 if (head) exchange.sendResponseHeaders(200,-1);
                 else {
                     boolean pinned=object.version()!=null && !object.version().equals("null");
-                    String query=exchange.getRequestURI().getRawQuery();
+                    query=exchange.getRequestURI().getRawQuery();
                     if ((pinned && (query==null || !query.contains("versionId="+object.version())))
                             || (!pinned && !object.etag().equals(exchange.getRequestHeaders().getFirst("If-Match")))) {
                         exchange.sendResponseHeaders(412,-1); return;

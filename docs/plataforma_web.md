@@ -1,6 +1,6 @@
 # ClickLance — plataforma web
 
-Atualizado em 16/10/2026. Documento de escopo e orientação para desenvolvimento.
+Atualizado em 30/10/2026. Documento de escopo e orientação para desenvolvimento.
 **Estado atual:** aplicação Next.js em `plataforma_web/`, com landing, busca de
 arenas e detalhe com quadras. O modo padrão usa dados fictícios; integração real,
 player, login, biblioteca e instalação PWA seguem pendentes. Comandos e limites
@@ -122,13 +122,13 @@ Não criar botões que aparentem executar operações ainda indisponíveis.
 | Auditoria administrativa | Implementada em BE-007, entregue para revisão. | Consulta por empresa; investigação por correlação exclusiva da plataforma. Interface web pendente. |
 | Publicação de configuração | BE-008 implementada, entregue para revisão. | Publicação versionada disponível; interface administrativa pendente. |
 | Registro de replay do gateway | BE-009–012 implementadas, entregues para revisão. | Cliente real validado localmente; AWS/hardware pendentes. Ingestão é do dispositivo. |
-| Conta de jogador, descoberta e reprodução | BE-013–017 ainda pendentes e condicionadas às decisões aplicáveis. | Aguardar contratos antes da integração real. |
-| Biblioteca e encerramento de conta | BE-018–021 ainda pendentes. | Não prometer conservação ou acesso sem política. |
+| Conta de jogador, descoberta e reprodução | BE-013–017 implementadas para revisão, com contratos na OpenAPI. | Integrar email/senha, sessão Bearer de 60 minutos e acesso autenticado à mídia. |
+| Biblioteca e encerramento de conta | BE-018–021 implementadas para revisão. | Integrar cota de 100, conservação enquanto a conta estiver ativa e encerramento coordenado. |
 | Landing, busca/detalhe de arenas e API mock | Implementados em `plataforma_web/`. | Consultas demonstrativas; não comprovam integração com backend real. |
 | Player, login, biblioteca e instalação PWA | Interfaces ainda pendentes. | Métodos simulados e dependências instaladas não equivalem a telas entregues. |
 
-A sessão administrativa já definida não determina a política de sessão de
-jogadores. A autorização permanece no backend: esconder uma ação na tela é
+A sessão de jogador usa audiência e persistência próprias, distintas da
+administração. A autorização permanece no backend: esconder uma ação na tela é
 complementar, e não impede uma requisição direta de outro tenant.
 
 ## 6. Stack e organização atuais
@@ -231,16 +231,16 @@ Para cada etapa, registrar o que foi implementado, o que foi simulado e o que fo
 verificado contra backend real. Testes devem cobrir o resultado para o usuário e
 os limites de autorização, não apenas renderização de componentes.
 
-## 9. Decisões ainda necessárias
+## 9. Decisões vigentes e pendências de integração
 
 | Decisão na visão do backend | Impacto na plataforma |
 |---|---|
-| D02 — acesso aos lances vigentes | Determina quem navega, assiste e salva; não assumir vitrine pública. |
-| D03 — conservação e cotas da biblioteca | Define textos, limites e disponibilidade de lances salvos. |
-| D07 — download/compartilhamento | Determina ações disponíveis no player. |
+| D02 — acesso aos lances vigentes | Confirmado: somente jogador autenticado; não apresentar vitrine pública de lances. |
+| D03 — conservação e cotas da biblioteca | Confirmado: até 100 lances enquanto a conta estiver ativa, sem prazo fixo; bloqueio suspende acesso. |
+| D07 — download/compartilhamento | Confirmado: reprodução e download; URLs bearer de até 300 segundos, limitadas ao prazo público quando não salvo. |
 | D11 — privacidade e retirada | Define informações e fluxos necessários antes de imagens reais. |
-| D12 — jogadores/recuperação | Define sessão, cadastro e recuperação de acesso do jogador. |
-| D14 — limites do piloto | Define carga, suporte, metas e critérios da jornada completa. |
+| D12 — jogadores/recuperação | Confirmado: email sem verificação inicial, senha, sessão de 60 minutos sem refresh e recuperação SMTP; configurar o canal real. |
+| D14 — limites do piloto | Parâmetros técnicos registrados na visão; carga representativa e metas da jornada completa ainda precisam de ensaio. |
 
 Antes da integração real, registrar também a escolha técnica de sessão no navegador,
 base URL/origem da API, CORS quando aplicável e modo de mocks. Isso não depende de

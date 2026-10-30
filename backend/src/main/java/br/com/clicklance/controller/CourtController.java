@@ -28,6 +28,12 @@ public class CourtController {
         return courts.find(principal, company, id);
     }
 
+    @PatchMapping("/{quadra_id}/status")
+    Court setActive(@AuthenticationPrincipal AdminPrincipal principal, @PathVariable("empresa_id") String company,
+                    @PathVariable("quadra_id") String id, @RequestBody Map<String, Object> body) {
+        return courts.setActive(principal, company, id, body);
+    }
+
     @GetMapping
     Map<String, Object> list(@AuthenticationPrincipal AdminPrincipal principal, @PathVariable("empresa_id") String company,
                             @RequestParam(defaultValue = "0") String page, @RequestParam(defaultValue = "20") String size) {

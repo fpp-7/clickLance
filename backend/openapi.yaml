@@ -1,10 +1,11 @@
 openapi: 3.1.0
 info:
   title: ClickLance — contratos do primeiro recorte
-  version: 0.7.0
+  version: 1.0.0
   description: >-
     Contratos BE-002. BE-003–012 implementam administração, configuração remota
-    e ingestão idempotente v1. Operações de jogadores permanecem fora deste contrato.
+    e ingestão idempotente v1. BE-013–028 acrescentam jogador, biblioteca, ciclo de vida e telemetria.
+    BE-026 acrescenta status operacional e rotação imediata de credenciais.
     Decisões e autorização em docs/overview_backend_refinamento.md.
     Configuração/ingestão preservam o contrato cloud v1 e o cliente existente.
     BE-007 acrescenta X-Correlation-ID gerado pelo servidor a respostas administrativas;
@@ -20,6 +21,7 @@ security:
 tags:
   - {name: Administração}
   - {name: Gateway}
+  - {name: Jogador}
 paths:
   /api/v1/admin/sessoes:
     post:
@@ -530,8 +532,1384 @@ paths:
         '503': {$ref: '#/components/responses/Unavailable'}
         '500': {$ref: '#/components/responses/InternalError'}
         '415': {$ref: '#/components/responses/BadRequest'}
+  /api/v1/admin/empresas/{empresa_id}/status:
+    parameters:
+      - {$ref: '#/components/parameters/EmpresaId'}
+    patch:
+      tags: [Administração]
+      operationId: alterarStatusEmpresa
+      x-story: BE-026
+      x-implementation-status: implemented
+      summary: Alterar status operacional da empresa; somente PLATFORM_ADMIN
+      description: >-
+        Estado explícito e repetível. Inativação recusa configuração e ingestão
+        de todos os dispositivos filhos com 403 após validar a credencial, inclusive
+        em reenvios de eventos já registrados. Não altera status próprios dos filhos,
+        versões publicadas, origem ou histórico. A alteração e a auditoria confirmam
+        na mesma transação. Cache v1 preserva inativação durante falta de rede;
+        com credencial válida, próximo refresh bem-sucedido aplica reativação.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/OperationalStatus'}
+      responses:
+        '200':
+          description: Empresa com status persistido
+          headers:
+            X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Empresa'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '405': {$ref: '#/components/responses/BadRequest'}
+        '415': {$ref: '#/components/responses/BadRequest'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/admin/empresas/{empresa_id}/quadras/{quadra_id}/status:
+    parameters:
+      - {$ref: '#/components/parameters/EmpresaId'}
+      - {$ref: '#/components/parameters/QuadraId'}
+    patch:
+      tags: [Administração]
+      operationId: alterarStatusQuadra
+      x-story: BE-026
+      x-implementation-status: implemented
+      summary: Alterar status da quadra na empresa autorizada
+      description: >-
+        Plataforma ou COMPANY_ADMIN com vínculo ativo à empresa. Confere a origem
+        persistida da quadra; não realoca histórico ou modifica o perfil de captura.
+        Inativa recusa configuração e ingestão dos dispositivos filhos com 403,
+        inclusive reenvios; token inválido continua recebendo 401. Não muda os
+        estados próprios dos filhos. Cache inativo persiste offline; próximo refresh
+        bem-sucedido com credencial válida aplica reativação.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/OperationalStatus'}
+      responses:
+        '200':
+          description: Quadra com status persistido e auditoria no mesmo commit
+          headers:
+            X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Quadra'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '405': {$ref: '#/components/responses/BadRequest'}
+        '415': {$ref: '#/components/responses/BadRequest'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/admin/dispositivos/{dispositivo_id}/status:
+    parameters:
+      - {$ref: '#/components/parameters/DispositivoId'}
+    patch:
+      tags: [Administração]
+      operationId: alterarStatusDispositivo
+      x-story: BE-026
+      x-implementation-status: implemented
+      summary: Alterar status do dispositivo na empresa autorizada
+      description: >-
+        Deriva a empresa da origem persistida e autoriza antes de alterar. Para
+        COMPANY_ADMIN, identidade ausente ou fora do escopo retorna o mesmo 403;
+        plataforma recebe 404 quando ausente. Inativação recusa configuração e
+        ingestão, inclusive reenvios, sem apagar fila ou histórico. Reativação no
+        backend só alcança o cache local v1 após refresh bem-sucedido; cache inativo
+        persiste sem rede. Credencial revogada exige provisionar o novo segredo local.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/OperationalStatus'}
+      responses:
+        '200':
+          description: Dispositivo sem credencial; status e auditoria persistidos
+          headers:
+            X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Dispositivo'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '405': {$ref: '#/components/responses/BadRequest'}
+        '415': {$ref: '#/components/responses/BadRequest'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/admin/dispositivos/{dispositivo_id}/credenciais/rotacao:
+    parameters:
+      - {$ref: '#/components/parameters/DispositivoId'}
+    post:
+      tags: [Administração]
+      operationId: rotacionarCredencialDispositivo
+      x-story: BE-026
+      x-implementation-status: implemented
+      summary: Emitir nova credencial e revogar imediatamente a anterior
+      description: >-
+        Plataforma ou COMPANY_ADMIN com vínculo ativo à empresa derivada do dispositivo.
+        Gera novo segredo de 32 bytes criptográficos; somente seu hash é persistido.
+        O segredo aparece nesta resposta após commit, com no-store. Token antigo
+        passa a receber 401, inclusive no reenvio de evento já registrado; token
+        novo continua sujeito à inativação dos três níveis (403). Sem sobreposição
+        ou drenagem automática: fila e cache inativo v1 exigem intervenção local.
+        Cada nova chamada rotaciona novamente; não recupera segredo perdido com a
+        resposta. Não altera identidade, origem, bucket, configuração ou eventos.
+        COMPANY_ADMIN recebe 403 para identidade ausente ou de outra empresa;
+        plataforma recebe 404 quando ausente.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DeviceTokenRotation'}
+      responses:
+        '200':
+          description: Nova credencial e auditoria persistidas; segredo exibido uma vez
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+            X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DispositivoIssued'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '405': {$ref: '#/components/responses/BadRequest'}
+        '415': {$ref: '#/components/responses/BadRequest'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/jogadores:
+    post:
+      tags:
+      - Jogador
+      operationId: cadastrarJogador
+      x-story: BE-013
+      x-implementation-status: implemented
+      summary: Cadastrar conta global de jogador
+      description: Email recebe trim/lowercase, sem verificação inicial. Senha 12–72 bytes UTF-8, BCrypt. Email já
+        existente, incluindo identidade administrativa, retorna 409; cadastro não concede papéis. Campos extras são
+        recusados.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlayerCredentials'
+      responses:
+        '201':
+          description: Operação confirmada após commit quando houver escrita.
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerIdentity'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/jogadores/sessoes:
+    post:
+      tags:
+      - Jogador
+      operationId: autenticarJogador
+      x-story: BE-013
+      x-implementation-status: implemented
+      summary: Iniciar sessão de jogador
+      description: JWT RS256 de 3600 segundos sem refresh, audiência clicklance-player e sessão durável separada da
+        administração. Conta inativa, encerrada ou administrativa não autentica aqui; resposta 401 genérica.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlayerCredentials'
+      responses:
+        '201':
+          description: Operação confirmada após commit quando houver escrita.
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/jogadores/sessoes/atual:
+    get:
+      tags:
+      - Jogador
+      operationId: consultarSessaoJogador
+      x-story: BE-013
+      x-implementation-status: implemented
+      summary: Consultar identidade do jogador
+      security:
+      - PlayerBearer: []
+      responses:
+        '200':
+          description: Operação confirmada após commit quando houver escrita.
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerIdentity'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+    delete:
+      tags:
+      - Jogador
+      operationId: encerrarSessaoJogador
+      x-story: BE-013
+      x-implementation-status: implemented
+      summary: Revogar sessão de jogador
+      security:
+      - PlayerBearer: []
+      responses:
+        '204':
+          description: Operação confirmada após commit quando houver escrita.
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/jogadores/recuperacao:
+    post:
+      tags:
+      - Jogador
+      operationId: solicitarRecuperacaoJogador
+      x-story: BE-014
+      x-implementation-status: implemented
+      summary: Solicitar instruções por SMTP
+      description: Resposta 202 genérica para conta ausente, administrativa, inativa ou elegível. SMTP configurável;
+        ausente retorna 503 para qualquer email. Token aleatório de 32 bytes, hash em repouso, uso único e prazo de
+        15 minutos; token nunca é retornado pela API nem logado. Desenvolvimento usa capturador SMTP local.
+        Falha de transporte mantém 202 genérico e invalida o token não entregue; jogador pode repetir a solicitação.
+        Limites de requisição reduzem abuso; tempo de resposta não garante ocultação completa da existência da conta.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlayerRecovery'
+      responses:
+        '202':
+          description: Operação confirmada após commit quando houver escrita.
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecoveryAccepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/jogadores/redefinicao:
+    post:
+      tags:
+      - Jogador
+      operationId: redefinirSenhaJogador
+      x-story: BE-014
+      x-implementation-status: implemented
+      summary: Redefinir senha com token de uso único
+      description: Token inválido, vencido, consumido ou de identidade administrativa retorna 422 INVALID_RESET_TOKEN.
+        Sucesso troca senha e revoga todas as sessões e os demais tokens de recuperação, atomicamente. A borda de
+        15 minutos já está vencida.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlayerReset'
+      responses:
+        '204':
+          description: Operação confirmada após commit quando houver escrita.
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/jogadores/conta:
+    delete:
+      tags:
+      - Jogador
+      operationId: encerrarContaJogador
+      x-story: BE-021
+      x-implementation-status: implemented
+      summary: Encerrar conta e remover vínculos da biblioteca
+      description: 'Operação atômica e retomável por repetição após falha: bloqueia usuário, remove seus vínculos
+        de biblioteca, inativa e anonimiza email/senha e invalida sessões/tokens. Preserva UUID e instante de encerramento,
+        sem afetar direitos de outros jogadores. Identidade administrativa não pode ser encerrada por este fluxo.
+        Após sucesso o JWT é inválido e novas chamadas retornam 401.'
+      security:
+      - PlayerBearer: []
+      responses:
+        '204':
+          description: Operação confirmada após commit quando houver escrita.
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/jogadores/arenas:
+    get:
+      tags:
+      - Jogador
+      operationId: descobrirArenas
+      x-story: BE-015
+      x-implementation-status: implemented
+      summary: Listar arenas ativas por nome e identidade navegável
+      security:
+      - PlayerBearer: []
+      parameters:
+      - &id001
+        $ref: '#/components/parameters/Page'
+      - &id002
+        $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Operação confirmada após commit quando houver escrita.
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArenaPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/jogadores/arenas/{empresa_id}/quadras:
+    get:
+      tags:
+      - Jogador
+      operationId: descobrirQuadras
+      x-story: BE-015
+      x-implementation-status: implemented
+      summary: Listar quadras ativas da arena
+      security:
+      - PlayerBearer: []
+      parameters:
+      - $ref: '#/components/parameters/EmpresaId'
+      - *id001
+      - *id002
+      responses:
+        '200':
+          description: Operação confirmada após commit quando houver escrita.
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourtDiscoveryPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/jogadores/quadras/{quadra_id}/disponibilidade:
+    get:
+      tags:
+      - Jogador
+      operationId: consultarDisponibilidade
+      x-story: BE-015
+      x-implementation-status: implemented
+      summary: Consultar datas e slots com lances vigentes
+      description: Contagens e datas respeitam origem ativa, expiração pelo relógio e bloqueio. Datas são paginadas;
+        slots pertencem à data selecionada. Intervalos locais [início,fim), último termina à meia-noite seguinte.
+      security:
+      - PlayerBearer: []
+      parameters:
+      - $ref: '#/components/parameters/QuadraId'
+      - &id003
+        name: data
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+        description: Padrão hoje no fuso IANA da quadra.
+      - *id001
+      - *id002
+      responses:
+        '200':
+          description: Operação confirmada após commit quando houver escrita.
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Availability'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/jogadores/quadras/{quadra_id}/lances:
+    get:
+      tags:
+      - Jogador
+      operationId: listarLancesJogador
+      x-story: BE-016
+      x-implementation-status: implemented
+      summary: Buscar lances por data e faixa horária local
+      description: Sem horas retorna o dia inteiro. Horas devem ser informadas em par e início < fim; parâmetros inválidos
+        recebem 422. Faixa [início,fim); fim 24 é meia-noite seguinte. Ordenação estável por timestamp e evento_id;
+        nunca publica expirado ou bloqueado mesmo com cron parado.
+      security:
+      - PlayerBearer: []
+      parameters:
+      - $ref: '#/components/parameters/QuadraId'
+      - *id003
+      - name: hora_inicio
+        in: query
+        schema:
+          type: integer
+          minimum: 0
+          maximum: 23
+      - name: hora_fim
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 24
+      - *id001
+      - *id002
+      responses:
+        '200':
+          description: Operação confirmada após commit quando houver escrita.
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplayPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/jogadores/lances/{evento_id}:
+    get:
+      tags:
+      - Jogador
+      operationId: consultarLanceJogador
+      x-story: BE-017
+      x-implementation-status: implemented
+      summary: Consultar detalhe autorizado
+      description: Recurso ausente ou inacessível retorna 404. Expirado salvo pode ser acessado somente pelo dono
+        do vínculo válido; bloqueio e reserva de purga impedem acesso.
+      security:
+      - PlayerBearer: []
+      parameters:
+      - &id004
+        name: evento_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/EventoId'
+      responses:
+        '200':
+          description: Operação confirmada após commit quando houver escrita.
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplaySummary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/jogadores/lances/{evento_id}/acesso:
+    post:
+      tags:
+      - Jogador
+      operationId: emitirAcessoLance
+      x-story: BE-017
+      x-implementation-status: implemented
+      summary: Emitir URL privada temporária para reprodução ou download
+      description: Autorização revalidada e versão do objeto fixada na assinatura. URL dura no máximo 300 segundos;
+        acesso pela vitrine limita ao prazo público restante. URL é uma credencial compartilhável enquanto vigente;
+        bloqueio/logout não revogam links já emitidos ou downloads já concluídos. Não persiste a URL como identidade
+        do objeto.
+      security:
+      - PlayerBearer: []
+      parameters:
+      - *id004
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MediaRequest'
+      responses:
+        '200':
+          description: Operação confirmada após commit quando houver escrita.
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaAccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/jogadores/biblioteca:
+    get:
+      tags:
+      - Jogador
+      operationId: listarBiblioteca
+      x-story: BE-019
+      x-implementation-status: implemented
+      summary: Listar somente a própria biblioteca
+      security:
+      - PlayerBearer: []
+      parameters:
+      - *id001
+      - *id002
+      responses:
+        '200':
+          description: Operação confirmada após commit quando houver escrita.
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplayPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/jogadores/biblioteca/{evento_id}:
+    put:
+      tags:
+      - Jogador
+      operationId: salvarLance
+      x-story: BE-018
+      x-implementation-status: implemented
+      summary: Salvar lance vigente, até 100 vínculos por conta
+      description: Criação retorna 201; repetição do vínculo existente retorna 200, inclusive depois da expiração
+        pública. Novo vínculo exige disponibilidade e cota; cota excedida retorna 409 LIBRARY_LIMIT_REACHED. Conta
+        ativa conserva sem prazo fixo, sujeita a bloqueio. Locks coordenam salvamento com encerramento e reserva de
+        purga.
+      security:
+      - PlayerBearer: []
+      parameters:
+      - *id004
+      responses:
+        '201':
+          description: Operação confirmada após commit quando houver escrita.
+          headers: &id005
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content: &id006
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplaySummary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '200':
+          description: Operação confirmada após commit quando houver escrita.
+          headers: *id005
+          content: *id006
+    delete:
+      tags:
+      - Jogador
+      operationId: removerLanceBiblioteca
+      x-story: BE-020
+      x-implementation-status: implemented
+      summary: Remover idempotentemente o próprio vínculo
+      description: Não remove vínculo de outro jogador nem apaga o objeto no request. Último vínculo removido torna
+        replay expirado elegível para seleção durável de purga.
+      security:
+      - PlayerBearer: []
+      parameters:
+      - *id004
+      responses:
+        '204':
+          description: Operação confirmada após commit quando houver escrita.
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/admin/lances/{evento_id}/bloqueio:
+    patch:
+      tags:
+      - Administração
+      operationId: bloquearLance
+      x-story: BE-022
+      x-implementation-status: implemented
+      summary: Suspender ou restaurar distribuição de um lance
+      description: Plataforma ou administrador da empresa de origem. Audita ator/motivo/instante; bloqueio vale para
+        descoberta, contagens, detalhe, biblioteca e nova emissão. Não exclui objeto nem invalida URLs previamente
+        emitidas.
+      security:
+      - AdminBearer: []
+      parameters:
+      - *id004
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReplayBlock'
+      responses:
+        '200':
+          description: Operação confirmada após commit quando houver escrita.
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplayBlockResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/admin/empresas/{empresa_id}/purga/reservas:
+    post:
+      tags:
+      - Administração
+      operationId: reservarPurga
+      x-story: BE-023
+      x-implementation-status: implemented
+      summary: Reservar trabalho durável para expirados sem vínculos
+      description: Exige autorização da empresa. Reservas coordenam com biblioteca; operações de storage ficam fora
+        do lock de decisão. Worker e reconciliação estão desabilitados por padrão (503 PURGE_DISABLED), exigem credencial
+        separada e política de storage validada. Exclusão só confirma purgado após efeito remoto; falha mantém trabalho
+        retomável. Reconciliação reporta divergências, sem apagar órfãos offline.
+      security:
+      - AdminBearer: []
+      parameters:
+      - $ref: '#/components/parameters/EmpresaId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchLimit'
+      responses:
+        '200':
+          description: Operação confirmada após commit quando houver escrita.
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurgeReservationResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/admin/empresas/{empresa_id}/purga/executar:
+    post:
+      tags:
+      - Administração
+      operationId: executarPurga
+      x-story: BE-024
+      x-implementation-status: implemented
+      summary: Executar trabalhos com retomada e confirmação remota
+      description: Exige autorização da empresa. Reservas coordenam com biblioteca; operações de storage ficam fora
+        do lock de decisão. Worker e reconciliação estão desabilitados por padrão (503 PURGE_DISABLED), exigem credencial
+        separada e política de storage validada. Exclusão só confirma purgado após efeito remoto; falha mantém trabalho
+        retomável. Reconciliação reporta divergências, sem apagar órfãos offline.
+      security:
+      - AdminBearer: []
+      parameters:
+      - $ref: '#/components/parameters/EmpresaId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchLimit'
+      responses:
+        '200':
+          description: Operação confirmada após commit quando houver escrita.
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurgeRunResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/admin/empresas/{empresa_id}/reconciliacao:
+    post:
+      tags:
+      - Administração
+      operationId: reconciliarStorage
+      x-story: BE-025
+      x-implementation-status: implemented
+      summary: Detectar divergências sem excluir objetos órfãos
+      description: Exige autorização da empresa. Reservas coordenam com biblioteca; operações de storage ficam fora
+        do lock de decisão. Worker e reconciliação estão desabilitados por padrão (503 PURGE_DISABLED), exigem credencial
+        separada e política de storage validada. Exclusão só confirma purgado após efeito remoto; falha mantém trabalho
+        retomável. Reconciliação reporta divergências, sem apagar órfãos offline.
+      security:
+      - AdminBearer: []
+      parameters:
+      - $ref: '#/components/parameters/EmpresaId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceTokenRotation'
+      responses:
+        '200':
+          description: Operação confirmada após commit quando houver escrita.
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReconciliationResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+    get:
+      tags:
+      - Administração
+      operationId: listarDivergenciasStorage
+      x-story: BE-025
+      x-implementation-status: implemented
+      summary: Consultar até 100 divergências registradas
+      security:
+      - AdminBearer: []
+      parameters:
+      - $ref: '#/components/parameters/EmpresaId'
+      responses:
+        '200':
+          description: Operação confirmada após commit quando houver escrita.
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReconciliationIssue'
+                maxItems: 100
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/dispositivos/{dispositivo_id}/saude:
+    post:
+      tags:
+      - Gateway
+      operationId: receberSaudeInstalacao
+      x-story: BE-027
+      x-implementation-status: implemented
+      summary: Receber telemetria versionada do próprio dispositivo
+      description: Offset obrigatório e precisão de microssegundos; observado entre agora−180 e agora+30 segundos.
+        Estado antigo não substitui mais recente. Credencial e estado dos pais verificados como na ingestão. Sem token,
+        URL de câmera ou configurações sensíveis no payload. Último contato isolado não prova captura saudável.
+      security:
+      - DeviceToken: []
+      parameters:
+      - $ref: '#/components/parameters/DispositivoId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HealthReport'
+      responses:
+        '204':
+          description: Operação confirmada após commit quando houver escrita.
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/admin/dispositivos/{dispositivo_id}/saude:
+    get:
+      tags:
+      - Administração
+      operationId: consultarSaudeInstalacao
+      x-story: BE-027
+      x-implementation-status: implemented
+      summary: Consultar contato e captura no tenant autorizado
+      description: UNKNOWN sem amostra; STALE quando recebido ou observado há 180 segundos ou mais; CURRENT caso contrário.
+        READY exige analisar progresso da captura separadamente.
+      security:
+      - AdminBearer: []
+      parameters:
+      - $ref: '#/components/parameters/DispositivoId'
+      responses:
+        '200':
+          description: Operação confirmada após commit quando houver escrita.
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstallationHealthView'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/admin/metricas:
+    get:
+      tags:
+      - Administração
+      operationId: consultarMetricasOperacionais
+      x-story: BE-030
+      x-implementation-status: implemented
+      summary: Consultar contadores operacionais; somente plataforma
+      security:
+      - AdminBearer: []
+      responses:
+        '200':
+          description: Operação confirmada após commit quando houver escrita.
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: integer
+                  minimum: 0
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
 components:
   securitySchemes:
+    PlayerBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Audiência clicklance-player; sessão durável de 60 minutos, sem permissões administrativas.
     AdminBearer:
       type: http
       scheme: bearer
@@ -643,6 +2021,435 @@ components:
         application/json:
           schema: {$ref: '#/components/schemas/ApiError'}
   schemas:
+    PlayerCredentials:
+      $ref: '#/components/schemas/AdminLogin'
+    PlayerIdentity:
+      type: object
+      additionalProperties: false
+      required:
+      - usuario_id
+      - email
+      properties:
+        usuario_id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+    PlayerRecovery:
+      type: object
+      additionalProperties: false
+      required:
+      - email
+      properties:
+        email:
+          type: string
+          minLength: 1
+          maxLength: 254
+    PlayerReset:
+      type: object
+      additionalProperties: false
+      required:
+      - token
+      - password
+      properties:
+        token:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{43}$
+          writeOnly: true
+        password:
+          type: string
+          format: password
+          writeOnly: true
+          minLength: 1
+          maxLength: 72
+          description: 12–72 bytes UTF-8; não truncar.
+    RecoveryAccepted:
+      type: object
+      additionalProperties: false
+      required:
+      - message
+      properties:
+        message:
+          type: string
+          const: Se a conta estiver elegivel, enviaremos as instrucoes de recuperacao.
+    ArenaSummary:
+      type: object
+      additionalProperties: false
+      required:
+      - empresa_id
+      - nome
+      properties:
+        empresa_id:
+          $ref: '#/components/schemas/OriginId'
+        nome:
+          $ref: '#/components/schemas/NonBlankName'
+    CourtSummary:
+      type: object
+      additionalProperties: false
+      required:
+      - quadra_id
+      - nome
+      - timezone
+      properties:
+        quadra_id:
+          $ref: '#/components/schemas/OriginId'
+        nome:
+          $ref: '#/components/schemas/NonBlankName'
+        timezone:
+          type: string
+          minLength: 1
+          maxLength: 64
+    ReplaySummary:
+      type: object
+      additionalProperties: false
+      required:
+      - evento_id
+      - empresa_id
+      - quadra_id
+      - timestamp
+      - expira_em
+      - salvo
+      properties:
+        evento_id:
+          $ref: '#/components/schemas/EventoId'
+        empresa_id:
+          $ref: '#/components/schemas/OriginId'
+        quadra_id:
+          $ref: '#/components/schemas/OriginId'
+        timestamp: &schemaid001
+          type: string
+          format: date-time
+        expira_em: *schemaid001
+        salvo: &schemaid003
+          type: boolean
+    ArenaPage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - page
+      - size
+      - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ArenaSummary'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+    CourtDiscoveryPage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - page
+      - size
+      - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CourtSummary'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+    ReplayPage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - page
+      - size
+      - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReplaySummary'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+    Availability:
+      type: object
+      additionalProperties: false
+      required:
+      - quadra_id
+      - timezone
+      - hoje
+      - data
+      - datas
+      - slots
+      - page
+      - size
+      properties:
+        quadra_id:
+          $ref: '#/components/schemas/OriginId'
+        timezone:
+          type: string
+          minLength: 1
+          maxLength: 64
+        hoje: &schemaid002
+          type: string
+          format: date
+        data: *schemaid002
+        datas:
+          type: array
+          items: *schemaid002
+        slots:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+            - hora_inicio
+            - hora_fim
+            - total
+            properties:
+              hora_inicio:
+                type: integer
+                minimum: 0
+                maximum: 23
+              hora_fim:
+                type: integer
+                minimum: 1
+                maximum: 24
+              total:
+                type: integer
+                minimum: 1
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+    MediaRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - download
+      properties:
+        download: *schemaid003
+    MediaAccess:
+      type: object
+      additionalProperties: false
+      required:
+      - url
+      - expira_em
+      properties:
+        url:
+          type: string
+          format: uri
+        expira_em: *schemaid001
+    ReplayBlock:
+      type: object
+      additionalProperties: false
+      required:
+      - blocked
+      - reason
+      properties:
+        blocked: *schemaid003
+        reason:
+          type: string
+          enum:
+          - POLICY
+          - PRIVACY
+          - OPERATIONAL
+    ReplayBlockResult:
+      type: object
+      additionalProperties: false
+      required:
+      - evento_id
+      - blocked
+      properties:
+        evento_id:
+          $ref: '#/components/schemas/EventoId'
+        blocked: *schemaid003
+    BatchLimit:
+      type: object
+      additionalProperties: false
+      required:
+      - limit
+      properties:
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+    PurgeReservationResult:
+      type: object
+      additionalProperties: false
+      required:
+      - reserved
+      properties:
+        reserved:
+          type: integer
+          minimum: 0
+    PurgeRunResult:
+      type: object
+      additionalProperties: false
+      required:
+      - completed
+      - failed
+      properties:
+        completed:
+          type: integer
+          minimum: 0
+        failed:
+          type: integer
+          minimum: 0
+    ReconciliationResult:
+      type: object
+      additionalProperties: false
+      required:
+      - orphan_objects
+      - missing_objects
+      - purged_objects
+      properties:
+        purged_objects:
+          type: integer
+          minimum: 0
+        orphan_objects:
+          type: integer
+          minimum: 0
+        missing_objects:
+          type: integer
+          minimum: 0
+    ReconciliationIssue:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - kind
+      - first_seen_at
+      - last_seen_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum:
+          - ORPHAN_OBJECT
+          - MISSING_OBJECT
+          - PURGED_OBJECT_PRESENT
+        first_seen_at: *schemaid001
+        last_seen_at: *schemaid001
+    HealthReport:
+      type: object
+      additionalProperties: false
+      required:
+      - schema_version
+      - observed_at
+      - gateway_version
+      - capture_state
+      - pending_events
+      - oldest_pending_age_seconds
+      - capture_progress_age_seconds
+      properties:
+        schema_version:
+          type: integer
+          const: 1
+        observed_at: *schemaid001
+        gateway_version: &schemaid004
+          type: string
+          pattern: ^[A-Za-z0-9._-]{1,32}$
+        capture_state: &schemaid005
+          type: string
+          enum:
+          - READY
+          - WARMING_UP
+          - UNAVAILABLE
+        pending_events: &schemaid006
+          type: integer
+          minimum: 0
+          maximum: 1000000
+        oldest_pending_age_seconds: &schemaid007
+          type: integer
+          minimum: 0
+          maximum: 315360000
+        capture_progress_age_seconds: &schemaid008
+          type:
+          - integer
+          - 'null'
+          minimum: 0
+          maximum: 315360000
+    InstallationHealth:
+      type: object
+      additionalProperties: false
+      required:
+      - dispositivo_id
+      - observed_at
+      - received_at
+      - gateway_version
+      - capture_state
+      - pending_events
+      - oldest_pending_age_seconds
+      - capture_progress_age_seconds
+      properties:
+        dispositivo_id:
+          $ref: '#/components/schemas/DeviceId'
+        observed_at: *schemaid001
+        received_at: *schemaid001
+        gateway_version: *schemaid004
+        capture_state: *schemaid005
+        pending_events: *schemaid006
+        oldest_pending_age_seconds: *schemaid007
+        capture_progress_age_seconds: *schemaid008
+    InstallationHealthView:
+      type: object
+      additionalProperties: false
+      required:
+      - dispositivo_id
+      - contact_state
+      properties:
+        dispositivo_id:
+          $ref: '#/components/schemas/DeviceId'
+        contact_state:
+          type: string
+          enum:
+          - UNKNOWN
+          - CURRENT
+          - STALE
+        health:
+          $ref: '#/components/schemas/InstallationHealth'
+    OperationalStatus:
+      type: object
+      additionalProperties: false
+      required: [active]
+      properties:
+        active: {type: boolean}
+      examples:
+        - {active: false}
+        - {active: true}
+    DeviceTokenRotation:
+      type: object
+      additionalProperties: false
+      description: Corpo vazio obrigatório; a credencial é gerada exclusivamente pelo servidor.
+      examples:
+        - {}
     OriginId:
       type: string
       minLength: 1
@@ -982,7 +2789,7 @@ components:
       properties:
         code:
           type: string
-          enum: [INVALID_REQUEST, UNAUTHENTICATED, FORBIDDEN, ORIGIN_INACTIVE, RESOURCE_NOT_FOUND, IDENTITY_CONFLICT, CONTENT_CONFLICT, CONFIG_VERSION_CONFLICT, VALIDATION_FAILED, EVENT_IN_FUTURE, RATE_LIMITED, DEPENDENCY_UNAVAILABLE, OBJECT_NOT_READY, CONFIGURATION_NOT_READY, INTERNAL_ERROR]
+          enum: [INVALID_REQUEST, UNAUTHENTICATED, FORBIDDEN, ORIGIN_INACTIVE, RESOURCE_NOT_FOUND, IDENTITY_CONFLICT, CONTENT_CONFLICT, CONFIG_VERSION_CONFLICT, VALIDATION_FAILED, EVENT_IN_FUTURE, RATE_LIMITED, DEPENDENCY_UNAVAILABLE, OBJECT_NOT_READY, CONFIGURATION_NOT_READY, INTERNAL_ERROR, INVALID_RESET_TOKEN, LIBRARY_LIMIT_REACHED, MEDIA_UNAVAILABLE, PURGE_DISABLED, STORAGE_POLICY_MISMATCH, STORAGE_UNAVAILABLE, DELETE_NOT_CONFIRMED, RECONCILIATION_LIMIT]
         message: {type: string, minLength: 1, maxLength: 240}
         correlation_id: {type: string, format: uuid}
         violations:
@@ -993,7 +2800,7 @@ components:
             required: [field, code]
             properties:
               field: {type: string, minLength: 1, maxLength: 120}
-              code: {type: string, enum: [REQUIRED, INVALID_FORMAT, OUT_OF_RANGE, UNKNOWN_FIELD, MISMATCH, NOT_ALLOWED]}
+              code: {type: string, enum: [REQUIRED, INVALID_FORMAT, OUT_OF_RANGE, UNKNOWN_FIELD, MISMATCH, NOT_ALLOWED, INVALID_RANGE]}
       examples:
         - code: VALIDATION_FAILED
           message: Campos fora do dominio permitido.

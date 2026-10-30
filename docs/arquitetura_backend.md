@@ -6,6 +6,11 @@ Decisão do responsável pelo projeto em 15/10/2026:
 como um único módulo Maven Spring Boot. A organização por camada passa a ser
 o padrão para todo o código existente e para as próximas histórias.
 
+Atualizado em 30/10/2026 para BE-001–028, implementadas para revisão. A mesma
+organização inclui jogador, biblioteca, ciclo de vida e telemetria. BE-029/030
+têm verificações operacionais parciais; BE-031 aguarda homologação real, conforme
+o [backlog](sprints_backend.md) e o [guia operacional](operacao_backend.md).
+
 ```text
 Requisição HTTP → Controller → Service → Repository → PostgreSQL
 Comando operacional ─────────→ Service
@@ -34,6 +39,8 @@ são injetadas pelo construtor. Classes dessas camadas usam os sufixos
 
 ## Estrutura
 
+Exemplos dos componentes atuais em cada pacote; o código é a referência completa.
+
 ```text
 backend/src/main/java/br/com/clicklance/
   ClickLanceApplication.java
@@ -54,6 +61,14 @@ backend/src/main/java/br/com/clicklance/
     Replay.java
     ReplayAck.java
     ReplayRegistration.java
+    PlayerUser.java
+    PlayerReplay.java
+    ReplaySummary.java
+    MediaAccess.java
+    LibrarySave.java
+    PurgeJob.java
+    ReconciliationOrigin.java
+    InstallationHealth.java
   controller/
     AdminController.java
     CompanyController.java
@@ -62,6 +77,12 @@ backend/src/main/java/br/com/clicklance/
     AuditController.java
     ConfigurationController.java
     ReplayController.java
+    PlayerController.java
+    PlayerReplayController.java
+    LibraryController.java
+    LifecycleController.java
+    InstallationHealthController.java
+    OperationalMetricsController.java
   service/
     AdminAccountService.java
     AdminSessionService.java
@@ -74,6 +95,18 @@ backend/src/main/java/br/com/clicklance/
     ConfigurationService.java
     ReplayService.java
     ObjectStorageService.java
+    PlayerAccountService.java
+    PlayerSessionService.java
+    RecoveryMailService.java
+    PlayerReplayService.java
+    MediaService.java
+    LibraryService.java
+    LifecycleService.java
+    PurgeWorkerService.java
+    PurgeStorageService.java
+    InstallationHealthService.java
+    RequestLimitService.java
+    OperationalMetricsService.java
   repository/
     AdminMembershipRepository.java
     AdminSessionRepository.java
@@ -84,10 +117,17 @@ backend/src/main/java/br/com/clicklance/
     AuditRepository.java
     ConfigurationRepository.java
     ReplayRepository.java
+    PlayerRepository.java
+    PlayerReplayRepository.java
+    LibraryRepository.java
+    LifecycleRepository.java
+    InstallationHealthRepository.java
   config/
     AdminSecurity.java
     IdentityConfiguration.java
     StorageConfiguration.java
+    MediaConfiguration.java
+    PurgeStorageConfiguration.java
   security/
     AdminBearerFilter.java
     AdminJwt.java
@@ -97,6 +137,10 @@ backend/src/main/java/br/com/clicklance/
     DeviceTokens.java
     CorrelationContext.java
     CorrelationFilter.java
+    PlayerJwt.java
+    PlayerPrincipal.java
+    PlayerBearerFilter.java
+    RequestLimitFilter.java
   exception/
     ApiAdvice.java
     ApiErrors.java
@@ -121,7 +165,7 @@ existentes são preservados; registros internos com hash de senha ou sessão nun
 devem ser retornados por controllers. `AdminUser` é público para permitir o
 uso entre repository e service, mas continua sendo um registro interno.
 `DeviceCredentials` também é interno; consultas retornam somente `Device`.
-`DeviceIssued` inclui o token apenas na emissão inicial após commit. Sua
+`DeviceIssued` inclui o token apenas na emissão inicial ou rotação após commit. Sua
 representação textual e a de `DeviceCredentials` omitem o segredo/hash.
 Componentes de segurança, configuração, erros, validação compartilhada e execução
 operacional ficam nos pacotes auxiliares indicados acima.
@@ -135,7 +179,8 @@ usam `REPEATABLE_READ` para manter a mesma visão entre itens e total.
 O SQL permanece parametrizado e centralizado nos repositories, usando
 `JdbcTemplate`. Locks necessários ao provisionamento ficam no repository e
 duram a transação iniciada pelo service. Constraints e migrations Flyway
-continuam garantindo os invariantes do banco. A refatoração não altera V1–V4.
+continuam garantindo os invariantes do banco. As entregas de 30/10 acrescentam
+V9–V12 e preservam V1–V8.
 
 ## Aplicação às histórias
 
@@ -144,11 +189,38 @@ persistência de regras em identidade, empresas e quadras. BE-006 em diante
 seguem o mesmo padrão desde o início. Não há novos endpoints ou decisões de
 produto decorrentes dessa refatoração.
 
-BE-006 acrescenta provisionamento nas mesmas camadas, com migration V5, geração
+BE-006 acrescentou provisionamento nas mesmas camadas, com migration V5, geração
 criptográfica em `security/DeviceTokens` e serviço transacional de autenticação.
 Esse serviço retorna `DevicePrincipal` sem segredo/hash, com origem resolvida no
-banco e estado atual dos três níveis. As rotas de configuração/ingestão serão
-implementadas em BE-008/011; não há endpoint fictício para testar autenticação.
+banco e estado atual dos três níveis. As rotas de configuração/ingestão foram
+implementadas em BE-008/011 e exercitam essa autenticação.
+
+### Jogador, biblioteca e operação (BE-013–028)
+
+`PlayerAccountService` e `PlayerSessionService` reutilizam a identidade global e
+as validações de senha, com audiência JWT e sessões separadas da administração.
+`RecoveryMailService` encapsula o SMTP configurável. Cadastro e recuperação de
+jogador não concedem nem alteram privilégios administrativos.
+
+`PlayerReplayService` aplica visibilidade, fuso e prazo; `MediaService` assina
+acesso privado e confere a expiração efetiva da assinatura. `LibraryService`
+serializa cota e alterações com lock de usuário antes do replay. Emissão de
+mídia e escritas da biblioteca revalidam a sessão na transação. Encerramento de
+conta remove vínculos, revoga sessões e anonimiza a identidade atomicamente.
+
+Biblioteca, bloqueio e reserva de purga compartilham o lock de replay e releem
+seu estado após adquiri-lo. `LifecycleService` delimita transações curtas para
+reserva, reivindicação e confirmação; `PurgeWorkerService` chama storage entre
+essas transações. Lease e token de reivindicação impedem que um worker obsoleto
+confirme trabalho de outro. `PurgeStorageService` usa cliente próprio e ativação
+explícita; reconciliação registra divergências sem apagar órfãos por idade.
+
+Autenticação de dispositivo mantém locks compartilhados de empresa, quadra e
+dispositivo até o commit de configuração/ingestão. Alterar status ou rotacionar
+credencial se coordena com essas operações e preserva a origem histórica.
+`InstallationHealthService` recebe a extensão de saúde sem alterar os contratos
+v1. Limites por operação e métricas em memória atendem ao piloto de uma instância;
+consulta global de métricas exige administrador da plataforma.
 
 ## Verificação
 
@@ -165,6 +237,14 @@ Em `backend/`, com JDK 21 e banco de teste dedicado configurados:
 .\.venv\Scripts\python.exe -X utf8 tools/validate_contract.py
 .\.venv\Scripts\python.exe -X utf8 tools/validate_contract.py --capture-profiles target/be005-capture-profiles.json
 ```
+
+Evidência atual de 30/10/2026: `verify` com perfil `integration` aprovou 103 testes,
+sendo 81 PostgreSQL/HTTP, 11 regras arquiteturais e 11 unitários, sem falhas ou
+ignorados. V1–V12 foram validadas sem reaplicação. Os procedimentos e limites
+estão no README e no guia operacional; AWS/hardware continuam sem homologação.
+
+As evidências abaixo são históricas e correspondem aos recortes de 15–16/10,
+não à contagem ou ao inventário atual de classes.
 
 Reorganização por camada validada em 15/10/2026 e disponível para revisão:
 `clean verify` com perfil `integration` aprovou 34 testes (22 PostgreSQL/HTTP,

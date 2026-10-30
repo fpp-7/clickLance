@@ -63,6 +63,25 @@ public class DeviceService {
                 .orElseThrow(() -> principal.platformAdmin() ? new ApiException(404, "RESOURCE_NOT_FOUND") : new ApiException(403, "FORBIDDEN"));
     }
 
+    @Transactional
+    public Device setActive(AdminPrincipal principal, String id, Map<String, Object> body) {
+        var device = find(principal, id);
+        Input.fields(body, Set.of("active"));
+        devices.setActive(id, device.empresa_id(), Input.bool(body, "active"));
+        audit.success(AuditAction.DEVICE_STATUS_CHANGE, principal.userId(), device.empresa_id(), id);
+        return find(principal, id);
+    }
+
+    @Transactional
+    public DeviceIssued rotateToken(AdminPrincipal principal, String id, Map<String, Object> body) {
+        var device = find(principal, id);
+        Input.fields(body, Set.of());
+        String token = tokens.issue();
+        devices.rotateToken(id, device.empresa_id(), tokens.hash(token));
+        audit.success(AuditAction.DEVICE_TOKEN_ROTATE, principal.userId(), device.empresa_id(), id);
+        return new DeviceIssued(find(principal, id), token);
+    }
+
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public Map<String, Object> list(AdminPrincipal principal, String companyId, String courtId, int page, int size) {
         courts.find(principal, companyId, courtId);

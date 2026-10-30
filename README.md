@@ -4,31 +4,37 @@ Replay de jogadas para quadras de futsal e society. O jogador aciona um botão f
 
 **Escopo confirmado do primeiro backend:** piloto gratuito com biblioteca pessoal. Pagamentos ficam para uma fase seguinte.
 
-## Estado atual — 16/10/2026
+## Estado atual — 30/10/2026
 
 | Módulo | Estado |
 |---|---|
-| Gateway | Captura IP/RTSP, replay temporal, aceite SQLite, pipeline recuperável, configuração remota e operação Windows implementados. |
+| Gateway | Captura IP/RTSP, replay temporal, aceite SQLite, pipeline recuperável, configuração remota, operação Windows e telemetria cloud opt-in implementados. |
 | Botão | Protocolo CL1 implementado; firmware compilado para Mega. Validação física pendente. |
-| Backend | Administração, configuração remota e ingestão idempotente implementadas em BE-001–012, entregues para revisão. Integração local com PostgreSQL e cliente real do gateway; AWS/hardware pendentes. |
+| Backend | BE-001–028 implementadas para revisão: administração, ingestão, contas de jogador, busca, mídia autorizada, biblioteca, bloqueio, purga e telemetria. BE-029/030 parcialmente verificadas; BE-031 pendente de homologação real. |
 | Plataforma web | Landing, busca de arenas e detalhe com quadras em `plataforma_web/`, com dados fictícios por padrão. Integração real, player, login e biblioteca pendentes. |
 | Piloto | Hardware, AWS/backend reais e jornada completa ainda dependem de homologação. |
 
-O [relatório de homologação](docs/homologacao_2026-10-15.md) registra 67 testes aprovados do gateway e as limitações. Isso não comprova backend ou piloto prontos.
+Verificação de 30/10: 103 testes Java aprovados, incluindo 81 PostgreSQL/HTTP;
+15 verificações de contrato e 73 casos do gateway verificados. Backup/restauração
+local preservou direitos e trabalhos pendentes. A sonda HTTP local não substitui
+carga representativa ou medição clique→reprodução. Evidências e limites no
+[guia operacional do backend](docs/operacao_backend.md); o
+[relatório de 15/10](docs/homologacao_2026-10-15.md) permanece como registro histórico.
 
 ## Documentação para desenvolvimento
 
 | Documento | Usar para |
 |---|---|
-| [Visão do backend](docs/overview_backend_refinamento.md) | Escopo, decisões pendentes e primeira entrega. Comece aqui. |
+| [Visão do backend](docs/overview_backend_refinamento.md) | Escopo, decisões confirmadas, parâmetros do piloto e pendências. Comece aqui. |
 | [Catálogo de requisitos](docs/requisitos_e_regras_mvp.md) | RF, RN, RNF e critérios de aceite; propostas identificadas. |
 | [Sprints e histórias do backend](docs/sprints_backend.md) | Fila BE-001–031, dependências, recortes e verificações para execução por agentes. |
 | [Plataforma web](docs/plataforma_web.md) | Escopo, jornadas, telas, stack proposta e dependências do frontend. |
-| [Guia do backend](backend/README.md) | Ambiente local, sessões administrativas e provisionamento. |
+| [Guia do backend](backend/README.md) | Ambiente local, autenticação, APIs de jogador/administração e verificações. |
+| [Operação do backend](docs/operacao_backend.md) | SMTP, telemetria, purga opt-in, backup/restauração, limites e pendências de homologação. |
 | [Arquitetura do backend](docs/arquitetura_backend.md) | Pacotes `model`, `controller`, `service`, `repository` e auxiliares; responsabilidades e verificações. |
 | [Guia da plataforma web](plataforma_web/README.md) | Execução Next.js, modo mock, integração e limites atuais. |
 | [Contrato cloud v1](docs/contrato_cloud_gateway_v1.md) | Integração com o gateway existente. |
-| [Modelo de dados](docs/modelagem_banco_de_dados.md) | Invariantes antes das migrations; sem DDL duplicado. |
+| [Modelo de dados](docs/modelagem_banco_de_dados.md) | Invariantes das migrations e coordenação de biblioteca/purga; sem DDL duplicado. |
 | [Guia do gateway](gateway_captura/README.md) | Configuração, execução e diagnóstico local. |
 | [Operação Windows](docs/operacao_gateway_windows.md) | Instalação, suporte, backup e recuperação do gateway. |
 | [Contrato botão/gateway](docs/contratos_gateway_botao.md) | Protocolo CL1, aceite e comportamento temporal. |
@@ -39,7 +45,7 @@ O [relatório de homologação](docs/homologacao_2026-10-15.md) registra 67 test
 ```text
 botao_local/        Firmware do botão
 gateway_captura/   Captura, processamento e envio locais
-backend/           API Spring Boot por camada; sessões, empresas, quadras e dispositivos
+backend/           API Spring Boot; administração, jogador, biblioteca e ciclo de vida
 plataforma_web/    Interface Next.js com landing e consultas demonstrativas
 docs/              Referências atuais e evidências
 ```
@@ -50,5 +56,5 @@ Maven. As classes ficam diretamente nos pacotes de cada camada, conforme o
 ## Visão original e evidências
 
 - [Visão original v0.1](docs/documento_visao_produto_replay_quadras_v0_1.pdf): concepção inicial; não define sozinha o escopo vigente.
-- [Homologação atual](docs/homologacao_2026-10-15.md): entregas verificadas, limites e pendências para o piloto.
+- [Homologação de 15/10](docs/homologacao_2026-10-15.md): evidência histórica; pendências atuais no backlog e no guia operacional.
 - [Evidências da sprint 1](docs/evidencias_sprint_1.md) e [sprint 2](docs/evidencias_sprint_2.md): registros das verificações intermediárias do gateway.

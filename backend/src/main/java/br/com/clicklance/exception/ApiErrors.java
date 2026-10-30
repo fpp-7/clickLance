@@ -30,6 +30,9 @@ public final class ApiErrors {
             case "CONFIG_VERSION_CONFLICT" -> "Versao da configuracao em conflito.";
             case "CONTENT_CONFLICT" -> "Conteudo do evento em conflito.";
             case "EVENT_IN_FUTURE" -> "Instante do evento alem da tolerancia permitida.";
+            case "RATE_LIMITED" -> "Limite de requisicoes atingido.";
+            case "INVALID_RESET_TOKEN" -> "Token de recuperacao invalido ou expirado.";
+            case "LIBRARY_LIMIT_REACHED" -> "Limite de lances salvos atingido.";
             case "INTERNAL_ERROR" -> "Falha interna ao processar a operacao.";
             default -> "Dependencia temporariamente indisponivel.";
         };
@@ -44,7 +47,7 @@ public final class ApiErrors {
         String correlationId = CorrelationContext.currentOrNew().toString();
         response.setHeader("X-Correlation-ID", correlationId);
         if (status == 401) response.setHeader("WWW-Authenticate", "Bearer");
-        if (status == 503) response.setHeader("Retry-After", "5");
+        if (status == 503 || status == 429) response.setHeader("Retry-After", status == 429 ? "60" : "5");
         response.getWriter().write("{\"code\":\"" + code + "\",\"message\":\"" + message(code)
                 + "\",\"correlation_id\":\"" + correlationId + "\"}");
     }

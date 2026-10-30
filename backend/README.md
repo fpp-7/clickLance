@@ -2,9 +2,10 @@
 
 Aplicação Spring Boot em um único módulo Maven, pacote raiz `br.com.clicklance`,
 com arquitetura **Model–Controller–Service–Repository**, organizada por camada. Inclui a fundação,
-sessões administrativas e cadastro/consulta de empresas, quadras e dispositivos
-(BE-001–012), com auditoria, configuração remota e ingestão idempotente. Integração
-AWS e homologação física continuam nas histórias seguintes.
+sessões administrativas, cadastros, configuração remota e ingestão idempotente,
+além de contas de jogador, descoberta, acesso a vídeo, biblioteca, ciclo de vida
+e telemetria (BE-001–028), disponíveis para revisão. Restauração e capacidade
+operacional têm ferramentas locais; homologação AWS e física permanece pendente.
 
 Referências: [arquitetura e pacotes](../docs/arquitetura_backend.md),
 [guia do agente](AGENTS.md), [backlog e estado de revisão](../docs/sprints_backend.md)
@@ -106,7 +107,7 @@ Crie um usuário e banco locais dedicados e informe `DB_HOST`, `DB_PORT`,
 `DB_NAME`, `DB_USER` e `DB_PASSWORD` no `.env` ou no ambiente. O usuário precisa
 de permissão para migrations no schema. A aplicação não cria o banco nem seu
 usuário; Flyway cria sua tabela de histórico e executa as migrations pendentes
-de V1 a V6. Reiniciar valida o histórico sem reaplicar migrations já executadas.
+de V1 a V12. Reiniciar valida o histórico sem reaplicar migrations já executadas.
 Não há H2 nem fallback em memória.
 
 ## Verificação com banco real
@@ -130,8 +131,9 @@ indisponível; não ignora testes nem substitui o banco por um simulador.
 Os testes de integração verificam saúde mínima, proteção de rotas, sessões,
 autorização por empresa, cadastros de empresas/quadras/dispositivos, paginação,
 constraints e concorrência de provisionamento. Flyway é validado sem reaplicação.
-V1 contém o marco técnico `backend_installation`; V2–V6 acrescentam identidade,
-empresa, quadra, credencial de dispositivo e auditoria administrativa.
+V1 contém o marco técnico `backend_installation`; V2–V8 acrescentam administração,
+origem, configuração e ingestão. V9–V12 acrescentam identidade de jogador,
+biblioteca, coordenação de purga/reconciliação e saúde da instalação.
 
 Para conferir somente a arquitetura, sem banco, execute nesta pasta:
 
@@ -159,8 +161,27 @@ não é apresentada como pronta. Não inclua senhas em URLs JDBC, comandos ou lo
 
 ## Estado e evidências atuais
 
-BE-001–012 estão disponíveis para revisão. As evidências de cada recorte
-ficam nas seções correspondentes; BE-013 é o próximo item do [backlog](../docs/sprints_backend.md), condicionado às decisões de conta de jogador.
+BE-001–028 estão implementadas para revisão, sem homologação AWS/hardware.
+As decisões de jogador foram confirmadas em 30/10/2026; as escolhas operacionais
+delegadas estão na [visão do backend](../docs/overview_backend_refinamento.md).
+BE-029 tem backup/restauração local exercitados parcialmente; BE-030 tem limites,
+métricas e carga HTTP local, com carga representativa ainda pendente. BE-031 continua
+dependendo de ambiente e dispositivos reais e revisão humana da liberação.
+
+Evidências locais de 30/10/2026:
+
+| Verificação | Resultado e limite |
+|---|---|
+| Maven `verify` com perfil `integration` | BUILD SUCCESS; 103 testes aprovados: 22 unitários/arquiteturais e 81 PostgreSQL/HTTP, sem falhas, erros ou ignorados. V1–V12 validadas sem reaplicação; banco PostgreSQL novo também exercitado. |
+| Contratos Python | 15 verificações e 3 respostas HTTP reais BE-026 aprovadas. |
+| Regressão do gateway | 73 testes executados, 72 aprovados e 1 RTSP inicialmente ignorado por falta do MediaMTX; repetido isoladamente com `MEDIAMTX_PATH`, passou. Os 73 casos foram verificados. |
+| Backup/restore PostgreSQL local | Snapshot com 1.002 replays, 1 usuário, 1 vínculo, 1 job PENDING e 12 migrations; backup em 1,169s e restore em 0,607s. Origem/destino iguais em `verify_restore.sql`, sem origem inválida ou biblioteca quebrada. API restaurada aprovada: sessão preservada, salvo expirado acessível ao dono e negado a outro jogador, reserva oculta e sem elevação administrativa. Mídia real permanece pendente. |
+| Sonda HTTP local | 60 GETs da grade com 1.000 replays vigentes e 4 concorrentes: 60 respostas 200 em 0,554s; p50 30,063ms, p95 109,740ms, p99 111,194ms. Não mede clique→reprodução nem carga representativa de produção. |
+
+Relatórios Java ficam em `target/surefire-reports/` e `target/failsafe-reports/`;
+artefatos locais de build são descartáveis. Nenhum desses resultados homologa
+AWS, hardware ou operação com participantes reais. Procedimentos adicionais e
+limites operacionais ficam em [operação do backend](../docs/operacao_backend.md).
 
 ### Histórico da reorganização por camada
 
@@ -212,8 +233,9 @@ da revisão e integração, conforme o guia do agente.
 ## Contratos do primeiro recorte (BE-002)
 
 [`openapi.yaml`](openapi.yaml) é a fonte dos schemas, rotas e erros planejados
-para administração e integração v1. Operações BE-003–012 estão implementadas;
-contratos de jogador/biblioteca serão acrescentados nas histórias correspondentes. Decisões de produto, autorização, bootstrap, sessão e estratégia de
+para administração, integração v1, jogador, biblioteca e operações. A versão
+1.0.0 inclui os recortes BE-003–028 implementados para revisão. Decisões de
+produto, autorização, bootstrap, sessão e estratégia de
 verificação de objetos estão na [visão do backend](../docs/overview_backend_refinamento.md).
 BE-002 não alterou o gateway nem acrescentou migrations de domínio.
 
@@ -667,9 +689,9 @@ gateway permanece intacto. Relatórios em `target/surefire-reports/`,
 `target/failsafe-reports/`, `target/be008-012-verification.log` e
 `target/be012-gateway-result.txt`, descartáveis após build limpo.
 
-Esta verificação local não homologa AWS/hardware. Interfaces de jogador,
-biblioteca, purga, rotação e carga continuam nas histórias correspondentes,
-condicionadas às decisões pendentes.
+Esta verificação de 16/10/2026 não homologou AWS/hardware e antecedeu jogador,
+biblioteca, purga e rotação. A evolução de 30/10/2026 está descrita abaixo;
+os resultados históricos seguintes permanecem os da entrega BE-008–012.
 
 Resultado BE-008–012 em 16/10/2026: 65 testes Java aprovados, sendo 48 de
 PostgreSQL/HTTP, 11 regras arquiteturais e 6 unitários, sem falhas ou ignorados.
@@ -677,3 +699,154 @@ V7/V8 aplicadas e validadas sem reaplicação; V1–V6 preservadas.
 
 Também aprovadas 12 verificações de contrato, 31 perfis HTTP contra o gateway,
 3 respostas de dispositivos, 2 de auditoria, 2 de configuração e 2 ACKs reais.
+
+## Jogador, busca e biblioteca (BE-013–021)
+
+As rotas abaixo são relativas a `/api/v1/jogadores`. Cadastro, login, recuperação
+e redefinição são públicos; as demais exigem JWT de jogador no header Bearer.
+O contrato completo de corpos, paginação e erros está na OpenAPI.
+
+| Método e caminho | Resultado |
+|---|---|
+| `POST /api/v1/jogadores` (raiz, sem barra final) | Cadastra `{email,password}`; 201 com identidade global, sem permissões administrativas. |
+| `POST /sessoes` | 201 com JWT e validade de 3.600 segundos. |
+| `GET /sessoes/atual`, `DELETE /sessoes/atual` | Consulta identidade ou revoga a sessão. |
+| `POST /recuperacao`, `POST /redefinicao` | Solicita email ou consome `{token,password}`. |
+| `GET /arenas`, `GET /arenas/{empresa_id}/quadras` | Descobre arenas e quadras ativas. |
+| `GET /quadras/{quadra_id}/disponibilidade` | Datas e slots com lances acessíveis; `data` omitida usa hoje na quadra. |
+| `GET /quadras/{quadra_id}/lances` | Busca por data e par `hora_inicio`/`hora_fim`; sem horas retorna o dia. |
+| `GET /lances/{evento_id}` | Detalhe autorizado sem endereço permanente do objeto. |
+| `POST /lances/{evento_id}/acesso` | `{download:boolean}` emite URL temporária para reprodução ou download. |
+| `GET /biblioteca`, `PUT /biblioteca/{evento_id}`, `DELETE /biblioteca/{evento_id}` | Lista, salva ou remove somente os próprios vínculos. |
+| `DELETE /conta` | Encerra a conta e remove seus vínculos atomicamente. |
+
+Email é obrigatório, recebe trim/lowercase e **não exige verificação inicial**.
+Senhas têm 12–72 bytes UTF-8, com BCrypt. Email já existente, inclusive de
+administrador, não cria nova identidade. JWT reutiliza as chaves RSA configuradas,
+com audiência e tabela de sessões exclusivas de jogador: 60 minutos, sem refresh.
+Logout revoga a sessão; redefinição revoga todas. Contas administrativas são
+protegidas contra cadastro, recuperação e encerramento por esse fluxo.
+
+Datas e faixas usam o fuso IANA da quadra, com intervalos `[início,fim)`; fim 24
+é a meia-noite seguinte. Ordenação usa instante e identidade para estabilizar a
+paginação. Expiração e bloqueio são avaliados nas consultas, sem depender do cron.
+Vitrine de origem inativa fica indisponível; direito privado de biblioteca é
+preservado, sujeito a bloqueio do próprio lance.
+
+Biblioteca conserva até **100 lances por conta ativa, sem prazo fixo**. Novo
+salvamento só ocorre enquanto disponível; repetição de vínculo existente não
+duplica nem consome nova cota, inclusive após expiração pública. Locks coordenam
+salvamento, encerramento e reserva de purga. Encerramento revoga acesso, remove
+somente os vínculos do solicitante e anonimiza email/senha; preserva UUID e data
+do fechamento. Falha reverte a transação e permite repetir. Depois do sucesso,
+o JWT anterior recebe 401.
+
+URL assinada é uma credencial bearer: pode ser reutilizada ou compartilhada até
+expirar. Sua validade máxima é 300 segundos, também limitada pelo prazo público
+restante quando o jogador não salvou o lance. O backend confere a validade real
+produzida pelo SDK e fixa a versão do objeto quando existente. Bloqueio ou logout
+impedem novas emissões; não recolhem downloads nem invalidam todo link já emitido.
+
+### SMTP para recuperação
+
+Configure `MAIL_HOST` e `MAIL_FROM`; sem eles, recuperação retorna 503 para
+qualquer email. `MAIL_PORT` tem padrão 587; `MAIL_USERNAME` e `MAIL_PASSWORD`
+ficam no ambiente/secret local. `MAIL_AUTH` e `MAIL_TLS` são true por padrão;
+timeouts de conexão/leitura/escrita são de 5 segundos. Para um capturador SMTP
+em loopback, use a porta local e ajuste autenticação/TLS ao capturador. Nenhum
+email real foi enviado pelos testes; o adaptador foi exercitado em SMTP local.
+
+O email leva um token aleatório de uso único, com prazo de 15 minutos; só seu hash
+fica no banco. A API responde 202 genérico para conta existente, ausente, inativa
+ou administrativa. Falha de transporte mantém o mesmo 202, descarta o token não
+entregue e registra somente código/correlação; o jogador pode repetir. Limites
+reduzem abuso, mas tempo de resposta não garante ocultar a existência da conta.
+Tokens e URLs não devem ser incluídos em relatórios ou logs.
+
+## Bloqueio, purga e operação (BE-022–028)
+
+| Método e caminho administrativo | Função |
+|---|---|
+| `PATCH /api/v1/admin/lances/{evento_id}/bloqueio` | Define `{blocked,reason}`; motivos `POLICY`, `PRIVACY` ou `OPERATIONAL`. |
+| `POST /api/v1/admin/empresas/{empresa_id}/purga/reservas` | Reserva até `limit` trabalhos duráveis para expirados sem vínculos. |
+| `POST /api/v1/admin/empresas/{empresa_id}/purga/executar` | Executa até `limit` trabalhos, com confirmação remota e retomada. |
+| `POST` / `GET /api/v1/admin/empresas/{empresa_id}/reconciliacao` | Registra divergências ou lista até 100 ocorrências no tenant. |
+| `PATCH /api/v1/admin/empresas/{empresa_id}/status` | Altera `{active}` da empresa; exclusivo de plataforma. |
+| `PATCH /api/v1/admin/empresas/{empresa_id}/quadras/{quadra_id}/status` | Altera `{active}` da quadra autorizada. |
+| `PATCH /api/v1/admin/dispositivos/{dispositivo_id}/status` | Altera `{active}` do dispositivo autorizado. |
+| `POST /api/v1/admin/dispositivos/{dispositivo_id}/credenciais/rotacao` | Corpo `{}`; novo segredo só na resposta `no-store`, token anterior imediatamente revogado. |
+
+Plataforma ou administrador vinculado à empresa executa bloqueio e operações
+da empresa. Escritas e auditoria confirmam juntas; falhas preservam recusa com
+correlação sem payload ou segredos. Bloqueio suspende descoberta, contagens,
+detalhe, biblioteca e nova emissão de acesso, sem declarar objeto apagado.
+
+`PURGE_ENABLED=false` é o padrão. Execução remota exige habilitação explícita e
+`PURGE_AWS_PROFILE` próprio, com credenciais de deleção separadas das do gateway
+e da leitura. `PURGE_STORAGE_ENDPOINT` é opcional para ambiente controlado. A
+política delegada do piloto é bucket privado sem versionamento, backups de vídeo
+ou lifecycle concorrente. O adaptador verifica o estado de versionamento e recusa
+bucket versionado/suspenso ou referência versionada; exclusão usa chave exata e
+ETag observado, confirmando ausência antes de marcar purgado. Ambiente AWS e IAM
+reais precisam ser homologados antes de ativar o worker.
+
+Reserva, claim e finalização usam transações curtas; rede não fica dentro do lock
+de decisão. Falha remota mantém trabalho retomável. Chamadas operacionais por
+lotes disparam o worker; não há agendador externo provisionado. Reconciliação
+reporta objeto sem registro, registro sem objeto e objeto ainda presente após
+purga. **Não exclui órfãos:** upload sem POST pode continuar numa fila offline.
+
+Inativação de empresa/quadra/dispositivo recusa configuração e ingestão, inclusive
+reenvios. Operações autenticadas já em andamento terminam antes do commit da
+alteração. Cache inativo do gateway permanece no disco e é respeitado offline;
+reativação com credencial válida é aplicada no próximo refresh bem-sucedido.
+Rotação exige instalar o novo segredo no gateway e tratar a fila local; repetir
+rotação emite outra credencial, sem recuperar o segredo de resposta perdida.
+
+### Saúde e limites
+
+`POST /api/v1/dispositivos/{dispositivo_id}/saude` usa `X-Device-Token` e payload
+versionado separado da configuração/ingestão v1. Recebe versão, estado de captura,
+progresso e fila, sem câmera/segredos. O gateway envia por thread própria, com
+`HEALTH_URL` configurada e `HEALTH_INTERVAL_SECONDS=60` por padrão. Falha do envio
+não bloqueia aceite/captura. Amostras antigas não substituem as mais recentes.
+
+`GET /api/v1/admin/dispositivos/{dispositivo_id}/saude` exige autorização da origem.
+Retorna `UNKNOWN` sem amostra; após 180 segundos sem contato/observação recente,
+`STALE`. Contato recente isolado não atesta captura saudável. O Actuator continua
+mostrando apenas saúde mínima do backend; SMTP não configurado não o torna DOWN.
+
+Os limites por minuto são 5 cadastros, 10 logins, 3 recuperações/redefinições,
+120 consultas, 30 emissões de mídia, 120 ingestões e 2 heartbeats por credencial.
+A rede também é limitada; para ingestão/heartbeat são 1.200/minuto. Rejeições
+retornam 429 com `Retry-After`, preservando identidade/idempotência dos eventos.
+`REQUEST_LIMITS_ENABLED=true` é o padrão. Contadores e limites estão em memória,
+adequados ao piloto de uma instância; reiniciam com o processo.
+`GET /api/v1/admin/metricas` é exclusivo de plataforma e não expõe dados pessoais.
+
+## Backup, restauração e capacidade (BE-029–031)
+
+`tools/backup_restore.ps1` usa os binários PostgreSQL indicados em `-PgBin` e as
+variáveis `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` do processo.
+O script não carrega `.env` automaticamente nem recebe senha em argumento.
+
+```powershell
+.\tools\backup_restore.ps1 -Mode Backup -PgBin 'C:\caminho\postgres\bin' -Archive 'C:\backups\clicklance.dump'
+.\tools\backup_restore.ps1 -Mode Restore -PgBin 'C:\caminho\postgres\bin' -Archive 'C:\backups\clicklance.dump' -DestinationDatabase 'clicklance_restore_validacao'
+```
+
+O backup recusa sobrescrever arquivo existente; restore exige banco novo isolado
+com nome `*_restore_*` e não executa DROP/clean sobre dados existentes. Compare
+origem e destino com `tools/verify_restore.sql`, valide direitos e trabalhos e
+mantenha worker desabilitado e SMTP sem credenciais no destino. O arquivo inclui
+hashes e configuração restrita; proteja acesso e conservação. Backup do banco
+não recupera vídeo definitivamente excluído. Metas delegadas são backup diário,
+RPO de 24h e restauração em até 4h; criar arquivo não comprova essas metas.
+
+`tools/load_probe.py` recebe JSON por stdin com `base_url`, `access_token`, `path`
+de consulta de jogador, `requests` e `concurrency`. Tokens não entram em argv nem
+no relatório, que mostra status e percentis HTTP. A sonda não mede clique→player
+nem substitui carga representativa de 1 arena/2 quadras/100 jogadores e até
+1.000 eventos/dia. Metas online de p95 até 300s e p99 até 600s ainda precisam ser
+medidas com captura, AWS, backend e aparelhos reais. BE-031 permanece pendente,
+incluindo informação aos participantes, suporte e revisão humana da liberação.

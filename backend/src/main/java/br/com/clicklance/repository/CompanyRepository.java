@@ -31,6 +31,10 @@ public class CompanyRepository {
         return Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM empresa WHERE id=?)", Boolean.class, id));
     }
 
+    public void setActive(String id, boolean active) {
+        jdbc.update("UPDATE empresa SET active=? WHERE id=?", active, id);
+    }
+
     public List<Company> findAll(int size, long offset) {
         return jdbc.query("SELECT id,nome,active,retencao_dias FROM empresa ORDER BY id LIMIT ? OFFSET ?",
                 CompanyRepository::map, size, offset);

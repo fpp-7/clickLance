@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /** Requer PostgreSQL real dedicado. Nao limpa nem recria dados existentes. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = {"clicklance.admin.private-key-path=", "clicklance.admin.public-key-path="})
+        properties = {"clicklance.admin.private-key-path=", "clicklance.admin.public-key-path=", "clicklance.limits.enabled=false"})
 class FoundationIT {
     @Autowired Environment environment;
     @Autowired JdbcTemplate jdbc;

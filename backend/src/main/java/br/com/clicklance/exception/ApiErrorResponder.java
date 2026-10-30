@@ -52,15 +52,22 @@ public class ApiErrorResponder {
             AuditAction action = AuditAction.ADMIN_REQUEST;
             if (p.length == 5) action = post ? AuditAction.COMPANY_CREATE : AuditAction.COMPANY_LIST;
             else if (p.length == 6) action = AuditAction.COMPANY_READ;
+            else if (p.length == 7 && p[6].equals("status")) action = AuditAction.COMPANY_STATUS_CHANGE;
+            else if (p.length == 8 && p[6].equals("purga")) action = p[7].equals("reservas") ? AuditAction.PURGE_RESERVE : AuditAction.PURGE_RUN;
+            else if (p.length == 7 && p[6].equals("reconciliacao")) action = post ? AuditAction.RECONCILIATION_RUN : AuditAction.RECONCILIATION_READ;
             else if (p.length == 7 && p[6].equals("auditoria")) action = AuditAction.AUDIT_LIST;
             else if (p.length >= 7 && p[6].equals("quadras")) {
                 if (p.length == 7) action = post ? AuditAction.COURT_CREATE : AuditAction.COURT_LIST;
                 else if (p.length == 8) action = AuditAction.COURT_READ;
+                else if (p.length == 9 && p[8].equals("status")) action = AuditAction.COURT_STATUS_CHANGE;
                 else if (p.length == 9 && p[8].equals("dispositivos")) action = post ? AuditAction.DEVICE_CREATE : AuditAction.DEVICE_LIST;
             }
             return new Route(action, company, null);
         }
         if (p.length == 7 && p[4].equals("dispositivos") && p[6].equals("configuracoes")) return new Route(AuditAction.CONFIG_PUBLISH, null, p[5]);
+        if (p.length == 7 && p[4].equals("lances") && p[6].equals("bloqueio")) return new Route(AuditAction.REPLAY_BLOCK, null, null);
+        if (p.length == 7 && p[4].equals("dispositivos") && p[6].equals("status")) return new Route(AuditAction.DEVICE_STATUS_CHANGE, null, p[5]);
+        if (p.length == 8 && p[4].equals("dispositivos") && p[6].equals("credenciais") && p[7].equals("rotacao")) return new Route(AuditAction.DEVICE_TOKEN_ROTATE, null, p[5]);
         if (p.length == 6 && p[4].equals("dispositivos")) return new Route(AuditAction.DEVICE_READ, null, p[5]);
         if (p.length == 6 && p[4].equals("auditoria")) return new Route(AuditAction.AUDIT_READ, null, null);
         if (p.length >= 5 && p[4].equals("sessoes")) {

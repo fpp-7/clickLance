@@ -54,7 +54,7 @@ public class ConfigurationService {
         audit.success(AuditAction.CONFIG_PUBLISH, principal.userId(), device.empresa_id(), id);
         return publication;
     }
-    @Transactional(readOnly=true)
+    @Transactional
     public GatewayConfig current(String id, String token) {
         authentication.authenticate(id, token);
         var publication = configurations.current(id).orElseThrow(() -> new ApiException(503, "CONFIGURATION_NOT_READY"));

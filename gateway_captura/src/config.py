@@ -49,6 +49,9 @@ class Config:
     CONFIG_URL: str = os.getenv('CONFIG_URL', '')
     CONFIG_REFRESH_SECONDS: int = int(os.getenv('CONFIG_REFRESH_SECONDS', '300'))
     CONFIG_VERSION: str = 'local'
+    # Extensao de telemetria; vazio desabilita envio cloud sem alterar ingestao/config v1.
+    HEALTH_URL: str = os.getenv('HEALTH_URL', '')
+    HEALTH_INTERVAL_SECONDS: int = int(os.getenv('HEALTH_INTERVAL_SECONDS', '60'))
 
     # --- AWS S3 ---
     AWS_ACCESS_KEY_ID: str | None = os.getenv("AWS_ACCESS_KEY_ID") or None
@@ -68,7 +71,7 @@ class Config:
         for field in ('REPLAY_BEFORE_SECONDS', 'SEGMENT_DURATION_SECONDS', 'KEYFRAME_INTERVAL',
                       'MAX_PENDING_EVENTS', 'BUFFER_QUOTA_BYTES', 'CLIPS_QUOTA_BYTES',
                       'CAPACITY_BITRATE', 'MAX_RETRIES', 'CONFIG_REFRESH_SECONDS',
-                      'REPLAY_FFMPEG_TIMEOUT_SECONDS', 'MAX_PACKET_GAP_SECONDS'):
+                      'REPLAY_FFMPEG_TIMEOUT_SECONDS', 'MAX_PACKET_GAP_SECONDS', 'HEALTH_INTERVAL_SECONDS'):
             value = getattr(cls, field)
             if not math.isfinite(value) or value <= 0:
                 raise ValueError('Configuração local inválida: ' + field)

@@ -46,6 +46,29 @@ public class DeviceRepository {
                         rs.getBoolean("court_active"), rs.getBoolean("company_active")), id).stream().findFirst();
     }
 
+    public Optional<DeviceCredentials> findCredentialsForAuthentication(String id) {
+        var origin = findCredentials(id);
+        if (origin.isEmpty()) return origin;
+        var device = origin.get().device();
+        // Ordem unica empresa -> quadra -> dispositivo. Locks duram ate o commit
+        // da configuracao/ingestao: a rotacao/inativacao aguarda operacoes aceitas.
+        jdbc.query("SELECT id FROM empresa WHERE id=? FOR SHARE", (rs, row) -> rs.getString(1), device.empresa_id());
+        jdbc.query("SELECT id FROM quadra WHERE id=? FOR SHARE", (rs, row) -> rs.getString(1), device.quadra_id());
+        jdbc.query("SELECT id FROM dispositivo WHERE id=? FOR SHARE", (rs, row) -> rs.getString(1), id);
+        // Releitura apos eventual espera e obrigatoria: status/token podem ter mudado.
+        return findCredentials(id);
+    }
+
+    public void setActive(String id, String companyId, boolean active) {
+        jdbc.update("UPDATE dispositivo d SET active=? FROM quadra q WHERE d.id=? AND q.id=d.quadra_id AND q.empresa_id=?",
+                active, id, companyId);
+    }
+
+    public void rotateToken(String id, String companyId, String tokenHash) {
+        jdbc.update("UPDATE dispositivo d SET token_hash=? FROM quadra q WHERE d.id=? AND q.id=d.quadra_id AND q.empresa_id=?",
+                tokenHash, id, companyId);
+    }
+
     public Optional<String> findCompanyId(String id) {
         return jdbc.query("SELECT q.empresa_id" + ORIGIN + " WHERE d.id=?", (rs, row) -> rs.getString("empresa_id"), id)
                 .stream().findFirst();

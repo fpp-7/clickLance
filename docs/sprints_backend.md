@@ -1,6 +1,6 @@
 # Backend — sprints e histórias de implementação
 
-Atualizado em 16/10/2026. BE-001–012 entregues para revisão; BE-013 em diante aguardam as dependências e decisões correspondentes. Piloto gratuito com biblioteca, pagamentos depois.
+Atualizado em 30/10/2026. BE-001–028 implementadas para revisão; BE-029 tem restauração local parcialmente verificada, BE-030 tem instrumentação e carga HTTP local com carga representativa pendente, e BE-031 aguarda homologação real. Piloto gratuito com biblioteca, pagamentos depois.
 
 Este é o único backlog do backend. As histórias referenciam o [catálogo de requisitos](requisitos_e_regras_mvp.md), as [decisões D01–D14](overview_backend_refinamento.md#3-o-que-falta-e-quando-precisa-estar-resolvido), as [diretrizes de dados](modelagem_banco_de_dados.md) e o [contrato cloud v1](contrato_cloud_gateway_v1.md). Não copiar payloads ou DDL para este arquivo. Os IDs `US-01–12` do catálogo são referências anteriores; os IDs executáveis deste plano são `BE-001–031`.
 
@@ -21,7 +21,9 @@ Uma história por tarefa. Escolher a primeira elegível na ordem abaixo; conclui
 | Em revisão | Implementação e verificações disponíveis para revisão. |
 | Concluída | Aceites e verificações passaram; resultado revisado e integrado. |
 
-**Fila atual:** BE-001–012 estão entregues para revisão, com as evidências dos recortes abaixo. BE-013 é o próximo recorte, condicionado à definição de D12 para jogador/email/recuperação e à revisão das dependências. As demais histórias aguardam implementações e decisões ainda abertas quando indicadas. Não criar endpoints fictícios, bypass de autorização ou políticas silenciosas para declarar uma história concluída.
+**Fila atual:** BE-001–028 estão implementadas para revisão. D02/D03/D07 e o recorte de jogador de D12 foram confirmados em 30/10/2026, incluindo email sem verificação inicial e SMTP configurável; D09/D14 tiveram escolhas técnicas delegadas, registradas na [visão](overview_backend_refinamento.md). BE-029 tem ferramentas de backup/restore com verificação local parcial. BE-030 tem limites, métricas e carga HTTP local, com medição representativa clique→reprodução pendente. BE-031 depende de AWS, câmera/botão/aparelhos reais e revisão humana. Não declarar conclusão ou homologação por testes substitutos.
+
+**Evidência atual de 30/10/2026:** Maven `verify` com perfil `integration` aprovado: 103 testes (22 unitários/arquiteturais e 81 PostgreSQL/HTTP), sem falhas/erros/ignorados; V1–V12 validadas sem reaplicação e banco novo exercitado. Também aprovadas 15 verificações Python de contrato e 3 respostas HTTP reais BE-026. A regressão do gateway executou 73 testes, sendo 72 aprovados e 1 inicialmente ignorado por falta do MediaMTX; o RTSP foi repetido isoladamente com `MEDIAMTX_PATH` e passou, verificando os 73 casos. Backup/restore e sonda HTTP têm evidências parciais nas fichas BE-029/030. Comandos e limites atuais no [README](../backend/README.md) e [guia operacional](operacao_backend.md); evidências de 15–16/10 abaixo são históricas.
 
 Cada ficha abaixo define **objetivo**, **dependências/decisões**, **escopo**, **aceite**, **verificação** e **referências**. Os caminhos são relativos à raiz do repositório. Versões e comandos foram fixados em BE-001; a estrutura atual segue o [guia de arquitetura](arquitetura_backend.md). As fichas referem-se a funcionalidades, cujas classes ficam nos pacotes por camada do mesmo módulo Maven.
 
@@ -205,6 +207,7 @@ As fichas desta e das próximas sprints precisam dos contratos web em OpenAPI an
 
 ### BE-013 — Cadastrar e autenticar jogador
 
+- **Estado atual:** em revisão (30/10/2026). Cadastro global com email normalizado e sem verificação inicial; BCrypt e sessão durável própria de 60 minutos, JWT com audiência exclusiva, sem refresh. Cadastro não cria papéis e não altera identidade administrativa. `PlayerIdentityIT` cobre concorrência, limites, expiração/logout, conta inativa e isolamento administrativo; aprovado na suíte final de 103 testes Java.
 - **Objetivo:** como jogador, usar uma conta global sem receber permissões administrativas.
 - **Depende de:** BE-003,007; D12 resolvida para login, email, validade e revogação.
 - **Escopo:** cadastro/login público, normalização/unicidade de email, hash de senha e mecanismo de sessão definido; reutilizar identidade administrativa sem duplicar a segurança.
@@ -215,6 +218,7 @@ As fichas desta e das próximas sprints precisam dos contratos web em OpenAPI an
 
 ### BE-014 — Recuperar conta e redefinir senha
 
+- **Estado atual:** em revisão (30/10/2026). SMTP configurável, token aleatório com hash persistido, uso único e prazo de 15 minutos; redefinição revoga todas as sessões e demais tokens. Resposta genérica não entrega existência/token; falha de transporte invalida o token não entregue e mantém 202, enquanto configuração ausente dá 503 universal. Testes incluem consumo concorrente, expiração exata, proteção de admin e capturador SMTP em loopback. Canal real será configurado pelo operador.
 - **Objetivo:** como jogador, recuperar acesso sem reutilizar um segredo vencido ou já consumido.
 - **Depende de:** BE-013; D12 e contrato do canal de recuperação definidos.
 - **Escopo:** solicitação de recuperação, token protegido em repouso, validade/uso único e redefinição; integrar canal por adaptador, usando capturador local em desenvolvimento.
@@ -225,6 +229,7 @@ As fichas desta e das próximas sprints precisam dos contratos web em OpenAPI an
 
 ### BE-015 — Descobrir arena, quadras e disponibilidade
 
+- **Estado atual:** em revisão (30/10/2026). Navegação autenticada por arenas/quadras ativas, datas e slots calculados pelo relógio/fuso da quadra, sem dados operacionais. Contrato na OpenAPI; testes PostgreSQL/HTTP em `PlayerLibraryIT`.
 - **Objetivo:** como jogador, encontrar a quadra e os horários que têm lances acessíveis.
 - **Depende de:** BE-005,011,013; D02,D13 e contrato de navegação definidos.
 - **Escopo:** identificação navegável da arena, catálogo de quadras e datas/slots disponíveis. Contrato público ou autenticado conforme D02, sem expor configuração operacional.
@@ -235,6 +240,7 @@ As fichas desta e das próximas sprints precisam dos contratos web em OpenAPI an
 
 ### BE-016 — Consultar lances por data e faixa horária
 
+- **Estado atual:** em revisão (30/10/2026). Listagem paginada com data local, intervalos semiabertos, hora final 24 e ordenação por timestamp/identidade. Expiração e bloqueio são filtrados sem cron; filtros incompletos/inválidos são recusados. `PlayerLibraryIT` exercita bordas, fuso e paginação.
 - **Objetivo:** como jogador, localizar lances no horário local em que joguei.
 - **Depende de:** BE-011,015; D02,D13.
 - **Escopo:** listagem paginada por quadra/data/intervalo, OpenAPI única e ordenação estável. Sem horas, retornar dia local paginado; com apenas um limite, rejeitar entrada inválida.
@@ -245,6 +251,7 @@ As fichas desta e das próximas sprints precisam dos contratos web em OpenAPI an
 
 ### BE-017 — Consultar detalhe e emitir acesso temporário ao vídeo
 
+- **Estado atual:** em revisão (30/10/2026). Detalhe e emissão autenticados; reprodução/download usam URL assinada com prazo real conferido no SDK, até 300 segundos e limitado à expiração pública quando não salvo. Recurso inacessível/ausente retorna 404; URL emitida continua sendo bearer até expirar. Testes cobrem autorização, versão e resolução lenta do signer; AWS real pendente.
 - **Objetivo:** como usuário autorizado, reproduzir um lance sem tornar o objeto público.
 - **Depende de:** BE-010,013,016; D02,D07 e contrato de emissão de acesso definidos.
 - **Escopo:** detalhe do lance e autorização de reprodução; download só se D07 incluir. Criar política de acesso reutilizável pela biblioteca, com direito privado acrescentado por BE-018/019.
@@ -257,6 +264,7 @@ As fichas desta e das próximas sprints precisam dos contratos web em OpenAPI an
 
 ### BE-018 — Salvar lance com vínculo único e conservação definida
 
+- **Estado atual:** em revisão (30/10/2026). V10 acrescenta vínculo único e coordenação do ciclo de vida; cota de 100 por conta ativa, sem prazo fixo. Locks de usuário/replay coordenam cota, concorrência, encerramento e reserva de purga; repetição não cria novo vínculo, inclusive após expiração pública. Testes com PostgreSQL real em `PlayerLibraryIT`.
 - **Objetivo:** como jogador, adicionar um lance autorizado à minha biblioteca.
 - **Depende de:** BE-013,017; D02,D03 e semântica da coordenação com purga definidas.
 - **Escopo:** migration do vínculo, salvamento, cota/prazo aprovados e ponto único de coordenação da elegibilidade para purga, reutilizado por BE-023.
@@ -267,6 +275,7 @@ As fichas desta e das próximas sprints precisam dos contratos web em OpenAPI an
 
 ### BE-019 — Listar biblioteca e autorizar acesso privado
 
+- **Estado atual:** em revisão (30/10/2026). Listagem do próprio dono e acesso privado após expiração, com bloqueio/reserva/purga respeitados. Não emite URL permanente; matriz de jogadores A/B exercitada em `PlayerLibraryIT`.
 - **Objetivo:** como jogador, rever meus lances salvos após saírem da vitrine.
 - **Depende de:** BE-017,018; D03.
 - **Escopo:** consulta paginada por dono, ordenação estável e integração do vínculo válido com a autorização de mídia/detalhe.
@@ -277,6 +286,7 @@ As fichas desta e das próximas sprints precisam dos contratos web em OpenAPI an
 
 ### BE-020 — Remover lance da própria biblioteca
 
+- **Estado atual:** em revisão (30/10/2026). Remoção idempotente do vínculo do solicitante, sob a coordenação de usuário/replay. Outros donos preservam direito; último vínculo removido torna expirado elegível para a seleção durável. Não há delete S3 no request de remoção.
 - **Objetivo:** como jogador, desfazer um vínculo sem afetar a biblioteca de outra pessoa.
 - **Depende de:** BE-018,019; D03 e política de remoção definidas.
 - **Escopo:** remoção idempotente do próprio vínculo e reavaliação durável da conservação/elegibilidade de purga; ainda sem chamada de deleção remota.
@@ -287,6 +297,7 @@ As fichas desta e das próximas sprints precisam dos contratos web em OpenAPI an
 
 ### BE-021 — Solicitar e executar encerramento da conta
 
+- **Estado atual:** em revisão (30/10/2026). Encerramento atômico: revalida sessão sob lock do usuário, remove somente seus vínculos, inativa/anonimiza email e senha e invalida sessões/tokens. Preserva UUID/data de encerramento; namespace de anonimização não pode ser reservado pelo cadastro. Rollback permite repetir após falha; administrador não é encerrado por fluxo de jogador. Testes incluem vínculos compartilhados e falha intermediária.
 - **Objetivo:** como jogador, encerrar a conta conforme a política aprovada.
 - **Depende de:** BE-014,020; D03,D11,D12 e regras de dados/auditoria aprovadas.
 - **Escopo:** solicitação autenticada, estado de execução retomável, revogação de acesso e tratamento de vínculos pelo mecanismo existente; dados retidos/anonimizados conforme D11.
@@ -299,6 +310,7 @@ As fichas desta e das próximas sprints precisam dos contratos web em OpenAPI an
 
 ### BE-022 — Bloquear ou retirar lance de todas as superfícies
 
+- **Estado atual:** em revisão (30/10/2026). Plataforma ou administrador vinculado à origem bloqueia/desbloqueia com motivo categórico e auditoria atômica. Descoberta, contagens, detalhe, biblioteca e nova emissão respeitam bloqueio; links anteriores e downloads concluídos não são revogados retroativamente. Condições de atendimento/participantes reais continuam em D11.
 - **Objetivo:** como operador autorizado, suspender a distribuição de um conteúdo com rastreabilidade.
 - **Depende de:** BE-007,017,019; D11 e contrato de bloqueio definidos.
 - **Escopo:** bloqueio separado de existência física do objeto; autor/motivo/instante; aplicação na descoberta, contagem, lista, detalhe e nova emissão de mídia, inclusive bibliotecas.
@@ -309,6 +321,7 @@ As fichas desta e das próximas sprints precisam dos contratos web em OpenAPI an
 
 ### BE-023 — Reservar trabalho durável de purga
 
+- **Estado atual:** em revisão (30/10/2026). V11 acrescenta jobs duráveis, claim com lease e reserva coordenada com vínculos e relógio. Após reserva não confirma novo salvamento; seleção/claim/finalização usam transações curtas. Cenários de dois workers, retomada e direitos existentes estão em `LifecycleIT`.
 - **Objetivo:** como sistema, separar elegibilidade de exclusão do efeito remoto.
 - **Depende de:** BE-018,020,022; D03,D09,D11.
 - **Escopo:** estado/intenção de purga, seleção em lotes e reivindicação de trabalho por worker; reutilizar a coordenação introduzida em BE-018 e a sinalização de BE-020.
@@ -319,6 +332,7 @@ As fichas desta e das próximas sprints precisam dos contratos web em OpenAPI an
 
 ### BE-024 — Executar e confirmar exclusão remota com retomada
 
+- **Estado atual:** em revisão (30/10/2026). Worker opt-in, desabilitado por padrão, com perfil de credencial próprio. Política D09 delegada recusa versões e bucket versionado/suspenso; delete exato e confirmação de ausência precedem purgado. Rede fora da transação de decisão, falha mantém retry durável. SDK real exercitado contra substituto HTTP; ativação sobre AWS/dados reais permanece condicionada à homologação.
 - **Objetivo:** como sistema, concluir o trabalho de purga sem perder o controle após falhas.
 - **Depende de:** BE-010,023; D09, política de versões e destino da auditoria definidos.
 - **Escopo:** worker, retentativas/limites, confirmação e tratamento de objeto já ausente segundo D09; credencial de deleção separada do Edge.
@@ -329,6 +343,7 @@ As fichas desta e das próximas sprints precisam dos contratos web em OpenAPI an
 
 ### BE-025 — Reconciliar objetos e registros divergentes
 
+- **Estado atual:** em revisão (30/10/2026). Inventário restrito às origens provisionadas registra duravelmente órfãos, registros sem objeto e objeto presente após purga, com consulta por empresa. Não exclui órfãos nem presume limite seguro para POST atrasado; repetições convergem para a mesma divergência.
 - **Objetivo:** como operador, encontrar uploads sem registro e registros sem objeto sem apagar trabalho legítimo atrasado.
 - **Depende de:** BE-011,024; D05,D08,D09 e janela segura de reconciliação definida.
 - **Escopo:** inventário/detecção, registro durável de divergência e ação conservadora definida; proteção de objetos de eventos offline ou em intervenção. Se o contrato atual não comprovar elegibilidade, reportar para intervenção em vez de excluir automaticamente.
@@ -339,6 +354,7 @@ As fichas desta e das próximas sprints precisam dos contratos web em OpenAPI an
 
 ### BE-026 — Rotacionar credenciais e inativar origem com controle
 
+- **Estado atual:** em revisão (30/10/2026). Status explícito de empresa/quadra/dispositivo e rotação com revogação imediata, segredo uma vez e auditoria atômica. Empresa é operação exclusiva de plataforma; demais rotas autorizam origem. Locks serializam alterações com config/ingestão em andamento. Testes reais cobrem tenant, rollback, espera pelo commit, reenvio e cache SQLite do gateway após reinício offline.
 - **Objetivo:** como administrador, conter uma origem sem corromper histórico ou perder visibilidade da fila pendente.
 - **Depende de:** BE-006–008,011; D08,D10.
 - **Escopo:** alteração operacional de empresa/quadra/dispositivo e rotação/revogação conforme política, com auditoria e configuração efetiva coerente; preservar identidade e origem histórica dos eventos.
@@ -349,6 +365,7 @@ As fichas desta e das próximas sprints precisam dos contratos web em OpenAPI an
 
 ### BE-027 — Definir e receber saúde da instalação
 
+- **Estado atual:** em revisão (30/10/2026). Contrato versionado de saúde com autenticação por dispositivo, estado/progresso de captura, fila e consulta administrativa por tenant. V12 preserva observação/recebimento e impede amostra antiga substituir recente. Sem contato/observação recente por 180s é STALE; contato isolado não comprova captura saudável.
 - **Objetivo:** como operador, distinguir ausência de contato de uma captura saudável.
 - **Depende de:** BE-006,007; recorte de D14 e contrato de telemetria definido antes do código.
 - **Escopo:** extensão explícita e versionada de heartbeat: identidade, versão, captura, fila, último contato, autenticação, limite e consulta administrativa. Mudança de contrato é adicionada à referência existente, sem alterar ingestão/config v1 silenciosamente.
@@ -359,6 +376,7 @@ As fichas desta e das próximas sprints precisam dos contratos web em OpenAPI an
 
 ### BE-028 — Integrar telemetria no gateway
 
+- **Estado atual:** em revisão (30/10/2026). Gateway envia saúde por thread independente, intervalo padrão de 60s e URL explícita, sem bloquear captura/pipeline ou enviar segredos. Regressão executou 73 testes: 72 aprovados e 1 RTSP inicialmente ignorado; repetição isolada com MediaMTX passou. Câmera/botão físicos e AWS permanecem sem homologação.
 - **Objetivo:** como operador, receber saúde real sem interferir no aceite/captura e na retomada de eventos.
 - **Depende de:** BE-027.
 - **Escopo:** única história deste plano que altera funcionalmente `gateway_captura/`: cliente do contrato de saúde aprovado, envio controlado e documentação local. Revisar instruções próprias do gateway antes de executar.
@@ -371,6 +389,7 @@ As fichas desta e das próximas sprints precisam dos contratos web em OpenAPI an
 
 ### BE-029 — Demonstrar backup e restauração
 
+- **Estado atual:** verificação parcial, em revisão (30/10/2026). `backend/tools/backup_restore.ps1` e `verify_restore.sql` exercitados em PostgreSQL real local, com destino novo isolado e sem sobrescrita. Snapshot: 1.002 replays, 1 usuário, 1 vínculo de biblioteca, 1 job PENDING e 12 migrations. Backup 1,169s, restore 0,607s; contagens origem/destino iguais e zero origens inválidas/bibliotecas quebradas. Autorização HTTP no banco restaurado verificada: sessão preservada, salvo expirado acessível ao dono e negado a terceiro, reserva oculta e sem acesso administrativo. Mídia real pendente; recuperar banco não recupera vídeo definitivamente removido. RPO diário e RTO do ambiente real permanecem metas a verificar.
 - **Objetivo:** como operador, recuperar os dados protegidos dentro dos objetivos definidos.
 - **Depende de:** BE-024–026; D03,D09,D11,D14 e RPO/RTO definidos.
 - **Escopo:** procedimento executável de backup/restauração do backend, referências de objetos e trabalhos pendentes; diferenciar banco recuperado de vídeo efetivamente recuperável.
@@ -381,6 +400,7 @@ As fichas desta e das próximas sprints precisam dos contratos web em OpenAPI an
 
 ### BE-030 — Verificar limites, carga e métricas de entrega
 
+- **Estado atual:** parcialmente implementada, em execução (30/10/2026). Limites por operação, 429 retentável, métricas globais exclusivas de plataforma e `backend/tools/load_probe.py` disponíveis para revisão. Sonda local: 60 GETs da grade com 1.000 replays vigentes e concorrência 4; 60 HTTP 200 em 0,554s, p50 30,063ms, p95 109,740ms e p99 111,194ms. Falta completar carga representativa, análise de planos/índices e medição clique→registro/reprodução com amostra e percentis; sonda HTTP não homologa esses objetivos.
 - **Objetivo:** como responsável pelo piloto, conhecer os limites antes de operar sem acompanhamento.
 - **Depende de:** BE-012,017,019,024,027,028; D14 e limites por operação definidos.
 - **Escopo:** limites de login/recuperação, consultas, emissão de mídia, ingestão e heartbeat; métricas de evento, fila e falhas; carga representativa e relatório com condições/amostra/percentis.
@@ -391,6 +411,7 @@ As fichas desta e das próximas sprints precisam dos contratos web em OpenAPI an
 
 ### BE-031 — Homologar fluxo completo e revisar liberação do piloto
 
+- **Estado atual:** pendente (30/10/2026). Requer AWS/backend reais, câmera/botão e aparelhos do público, condições de participação/atendimento e revisão humana da liberação. Testes locais e simuladores não encerram esta história.
 - **Objetivo:** como responsável pelo produto, liberar o piloto com critérios demonstrados e limites conhecidos.
 - **Depende de:** BE-001–030 concluídas ou recortes explicitamente retirados do piloto com atualização do catálogo/plano; D11,D14 resolvidas e políticas das entregas anteriores registradas.
 - **Escopo:** AWS/backend reais, dispositivo/câmera alvo, busca/player nos aparelhos do público, falhas de rede/reinício e operação; reutilizar o [relatório de homologação](homologacao_2026-10-15.md) como referência das pendências físicas, registrando nova evidência datada sem reescrever resultados anteriores como se fossem atuais.

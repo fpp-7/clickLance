@@ -49,6 +49,7 @@ abstract class AdminTestSupport {
 
     @DynamicPropertySource
     static void keys(DynamicPropertyRegistry registry) {
+        registry.add("clicklance.limits.enabled", () -> "false");
         registry.add("clicklance.admin.private-key-path", () -> KEYS.resolve("private.pem").toString());
         registry.add("clicklance.admin.public-key-path", () -> KEYS.resolve("public.pem").toString());
     }

@@ -26,6 +26,12 @@ public class CompanyController {
         return companies.find(principal, id);
     }
 
+    @PatchMapping("/{empresa_id}/status")
+    Company setActive(@AuthenticationPrincipal AdminPrincipal principal, @PathVariable("empresa_id") String id,
+                      @RequestBody Map<String, Object> body) {
+        return companies.setActive(principal, id, body);
+    }
+
     @GetMapping
     Map<String, Object> list(@AuthenticationPrincipal AdminPrincipal principal,
                             @RequestParam(defaultValue = "0") String page,

@@ -149,6 +149,77 @@ class ContractTests(unittest.TestCase):
         for method in ('post', 'get'):
             self.assertEqual(self.spec['paths'][path][method]['x-implementation-status'], 'implemented')
 
+    def test_operational_status_and_rotation_do_not_accept_identity_or_credentials(self):
+        for active in (True, False):
+            self.validator('OperationalStatus').validate({'active': active})
+        for body in ({}, {'active': None}, {'active': 'false'}, {'active': 0}, {'active': 1}):
+            self.invalid('OperationalStatus', body)
+        for field in ('empresa_id', 'quadra_id', 'dispositivo_id', 'bucket', 'device_token', 'token_hash', 'role'):
+            self.invalid('OperationalStatus', {'active': False, field: 'untrusted'})
+            self.invalid('DeviceTokenRotation', {field: 'untrusted'})
+        self.validator('DeviceTokenRotation').validate({})
+        self.invalid('DeviceTokenRotation', None)
+        routes = (
+            ('/api/v1/admin/empresas/{empresa_id}/status', 'patch', 'OperationalStatus', 'Empresa'),
+            ('/api/v1/admin/empresas/{empresa_id}/quadras/{quadra_id}/status', 'patch', 'OperationalStatus', 'Quadra'),
+            ('/api/v1/admin/dispositivos/{dispositivo_id}/status', 'patch', 'OperationalStatus', 'Dispositivo'),
+            ('/api/v1/admin/dispositivos/{dispositivo_id}/credenciais/rotacao', 'post', 'DeviceTokenRotation', 'DispositivoIssued'),
+        )
+        self.assertEqual(self.spec['security'], [{'AdminBearer': []}])
+        for path, method, request_schema, response_schema in routes:
+            with self.subTest(path=path):
+                operation = self.spec['paths'][path][method]
+                self.assertNotIn('security', operation)  # herda Bearer administrativo
+                self.assertTrue(operation['requestBody']['required'])
+                self.assertEqual(operation['requestBody']['content']['application/json']['schema'],
+                                 {'$ref': f'#/components/schemas/{request_schema}'})
+                self.assertEqual(operation['responses']['200']['content']['application/json']['schema'],
+                                 {'$ref': f'#/components/schemas/{response_schema}'})
+                self.assertIn('X-Correlation-ID', operation['responses']['200']['headers'])
+        rotation = self.spec['paths'][routes[-1][0]]['post']
+        self.assertEqual(rotation['responses']['200']['headers']['Cache-Control']['schema']['const'], 'no-store')
+
+    def test_player_schemas_exclude_privileges_storage_identity_and_secrets(self):
+        credentials = {'email': 'player@example.invalid', 'password': 'fixture-only-password'}
+        self.validator('PlayerCredentials').validate(credentials)
+        for field in ('role', 'platform_admin', 'empresa_ids', 'active'):
+            self.invalid('PlayerCredentials', dict(credentials, **{field: True}))
+        identity = {'usuario_id': '8cc5c2cc-a4b6-4a5e-8a45-574499b2e247', 'email': credentials['email']}
+        self.validator('PlayerIdentity').validate(identity)
+        for field in ('password', 'password_hash', 'session_hash', 'reset_token'):
+            self.invalid('PlayerIdentity', dict(identity, **{field: 'must-not-leak'}))
+        for token in ('a' * 43, '_' * 43):
+            self.validator('PlayerReset').validate({'token': token, 'password': credentials['password']})
+        for token in ('', 'a' * 42, 'a' * 44, 'a' * 42 + '='):
+            self.invalid('PlayerReset', {'token': token, 'password': credentials['password']})
+        replay = {'evento_id': 'a' * 32, 'empresa_id': 'empresa_1', 'quadra_id': 'quadra_1',
+                  'timestamp': '2026-10-30T12:00:00Z', 'expira_em': '2026-11-01T12:00:00Z', 'salvo': False}
+        self.validator('ReplaySummary').validate(replay)
+        for field in ('bucket', 'key', 'sha256', 'url', 'device_token', 'CAMERA_RTSP_URL'):
+            self.invalid('ReplaySummary', dict(replay, **{field: 'must-not-leak'}))
+        for path, operations in self.spec['paths'].items():
+            if path.startswith('/api/v1/jogadores/'):
+                for method, operation in operations.items():
+                    if method not in ('get', 'post', 'put', 'delete', 'patch'):
+                        continue
+                    public = method == 'post' and path.rsplit('/', 1)[-1] in ('sessoes', 'recuperacao', 'redefinicao')
+                    self.assertEqual(operation['security'], [] if public else [{'PlayerBearer': []}], path)
+
+    def test_health_payload_version_bounds_and_sensitive_extensions(self):
+        report = {'schema_version': 1, 'observed_at': '2026-10-30T12:00:00Z', 'gateway_version': '1.0.0',
+                  'capture_state': 'READY', 'pending_events': 0, 'oldest_pending_age_seconds': 0,
+                  'capture_progress_age_seconds': None}
+        self.validator('HealthReport').validate(report)
+        for field, value in (('schema_version', 2), ('pending_events', 1000001), ('capture_state', 'HEALTHY'),
+                             ('gateway_version', 'rtsp://camera'), ('capture_progress_age_seconds', -1)):
+            self.invalid('HealthReport', dict(report, **{field: value}))
+        for field in ('device_token', 'url', 'CAMERA_RTSP_URL', 'AWS_SECRET_ACCESS_KEY'):
+            self.invalid('HealthReport', dict(report, **{field: 'must-not-leak'}))
+        for field in report:
+            missing = dict(report)
+            missing.pop(field)
+            self.invalid('HealthReport', missing)
+
     def test_real_gateway_register_emits_contract_and_accepts_ack(self):
         payload = self.schemas['ReplayCreate']['examples'][0]
         event = {'id': payload['evento_id'], 'device': payload['dispositivo_id'],
@@ -198,7 +269,7 @@ class ContractTests(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 3 and sys.argv[1] in ('--device-responses', '--audit-responses', '--config-responses', '--replay-responses'):
+    if len(sys.argv) == 3 and sys.argv[1] in ('--device-responses', '--audit-responses', '--config-responses', '--replay-responses', '--operation-responses', '--player-responses'):
         fixtures = json.loads(Path(sys.argv[2]).read_text(encoding='utf-8'))
         assert fixtures
         ContractTests.setUpClass()

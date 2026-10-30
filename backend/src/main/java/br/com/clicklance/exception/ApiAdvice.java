@@ -24,7 +24,7 @@ public class ApiAdvice {
         error = errors.record(request, error);
         var builder = ResponseEntity.status(error.status()).header("Cache-Control", "no-store");
         if (error.status() == 401 && request.getServletPath().startsWith("/api/v1/admin/")) builder.header("WWW-Authenticate", "Bearer");
-        if (error.status() == 503) builder.header("Retry-After", "5");
+        if (error.status() == 503 || error.status() == 429) builder.header("Retry-After", error.status() == 429 ? "60" : "5");
         var body = ApiErrors.body(error);
         return builder.header("X-Correlation-ID", body.get("correlation_id").toString()).body(body);
     }

@@ -35,6 +35,10 @@ public class CourtRepository {
                 CourtRepository::map, companyId, size, offset);
     }
 
+    public void setActive(String companyId, String id, boolean active) {
+        jdbc.update("UPDATE quadra SET active=? WHERE empresa_id=? AND id=?", active, companyId, id);
+    }
+
     public long countByCompany(String companyId) {
         return jdbc.queryForObject("SELECT count(*) FROM quadra WHERE empresa_id=?", Long.class, companyId);
     }
